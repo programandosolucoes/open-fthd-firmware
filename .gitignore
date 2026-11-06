@@ -1,0 +1,4 @@
+src/*.o
+build/*.elf
+build/*.txt
+.DS_Store
