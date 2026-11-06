@@ -1,4 +1,9 @@
 src/*.o
 build/*.elf
 build/*.txt
+rust/target/.rustc_info.json
+rust/target/CACHEDIR.TAG
+rust/target/armv7a-none-eabi/
+rust/target/release/
+rust/target/debug/
 .DS_Store

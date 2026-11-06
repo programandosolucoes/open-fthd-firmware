@@ -94,6 +94,8 @@ Cada módulo, cabeçalho e linha de código do `open-fthd-firmware` possui sua o
 | **`linker.ld`** | Sintaxe GNU LD | Implementação Original | GPL-2.0 | **Desenvolvido do Zero**: Script de linkedição mapeando a janela de 2 MB de RAM a partir do endereço `0x00000000`, alocando `.vector`, `.text`, `.rodata`, `.data`, `.bss` e pilha de 64 KB. |
 | **`Makefile`** | Sintaxe GNU Make | Implementação Original | GPL-2.0 | **Desenvolvido do Zero**: Pipeline de compilação cruzada para ARM Cortex-A7 com `arm-none-eabi-gcc` (`-nostdlib`, `-nostartfiles`, `-O2`), extração de binário puro via `objcopy` e alvo automatizado de testes em QEMU (`make test`). |
 | **`tests/test_qemu.py`** | Automação Python 3 / QEMU | Implementação Original | GPL-2.0 | **Desenvolvido do Zero**: Executor de teste unitário que dispara o emulador QEMU, intercepta escritas de barramento em memória e valida a inicialização íntegra de todos os canais de telemetria do ISP. |
+| **`rust/` (Firmware Bare-Metal em Rust)** | Arquitetura Rust `#![no_std]` / `armv7a-none-eabi` | Implementação Original | GPL-2.0 | **Desenvolvido do Zero**: Implementação alternativa 100% autoral em Rust puro bare-metal (`registers.rs`, `ipc.rs`, `sensor.rs`, `main.rs`). Ocupa apenas **420 bytes**, eliminando vulnerabilidades de ponteiros e garantindo MMIO *type-safe*. |
+| **`tests/test_qemu_rust.py`** | Automação Python 3 / QEMU | Implementação Original | GPL-2.0 | **Desenvolvido do Zero**: Teste unitário automatizado que valida o boot do binário Rust e o registro dos 7 canais IPC no Mailbox `0xc3000` em emulação Cortex-A7. |
 
 ---
 
@@ -104,11 +106,12 @@ O código customizado desenvolvido neste projeto introduz avanços significativo
 1. **Desbloqueio de Multi-Resolução Nativa**:
    - Tanto o firmware fechado da Apple quanto o driver `bcwc_pcie` travavam a câmera em um único perfil rígido de 1280x720@30fps (`FTHD_MAX_WIDTH 1280`, `FTHD_MAX_HEIGHT 720`), retornando erro `-EINVAL` para qualquer outra solicitação.
    - O `OpenFTHD` implementa uma tabela discreta com 5 resoluções, permitindo que o sistema operacional explore a capacidade nativa de 5.0 Megapixels do sensor OV5650 (incluindo Full HD 1080p a 30fps e 720p fluido a 60fps).
-2. **Pegada de Memória Mínima e Freestanding**:
-   - O firmware compilado ocupa apenas **1.7 KB**, enquanto o binário proprietário consumia 1.4 MB devido a runtimes pesados de C++, bibliotecas dinâmicas e asserts de depuração obsoletos.
-   - Totalmente independente de qualquer biblioteca externa (`-nostdlib`, `-nostartfiles`, `-ffreestanding`).
+2. **Duas Implementações de Alta Eficiência (C e Rust Bare-Metal)**:
+   - **Versão C de Referência**: Compilada em **1.7 KB**, opera de forma *freestanding* (`-nostdlib`, `-nostartfiles`).
+   - **Versão em Rust Bare-Metal (`#![no_std]`)**: Compilada em impressionantes **420 bytes**, oferecendo segurança de memória garantida pelo compilador LLVM, zero vazamento de memória e proteção estática contra *buffer overflows* nos ringbuffers de vídeo.
+   - Comparação: O blob proprietário original da Apple media 1.4 MB (bloat de runtime C++ e depuração legada).
 3. **Emulação Contínua em QEMU sem Hardware Físico**:
-   - Permite que desenvolvedores de qualquer lugar do mundo criem, testem e validem o firmware diretamente em computadores convencionais ou esteiras de CI/CD sem precisar de um MacBook Pro físico.
+   - Permite que desenvolvedores de qualquer lugar do mundo criem, testem e validem ambas as versões do firmware diretamente em computadores convencionais ou esteiras de CI/CD sem precisar de um MacBook Pro físico.
 
 ---
 

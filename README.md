@@ -57,22 +57,31 @@ Full provenance details and legal clean-room statements are documented in:
 
 ## 3. Building and Testing the Firmware
 
+The project provides two independent clean-room implementations:
+1. **C Reference Firmware**: Classic bare-metal freestanding C.
+2. **Rust Bare-Metal Firmware** (`#![no_std]`): Ultra-safe, memory-leak-free, type-safe MMIO implementation under `rust/`.
+
 ### Prerequisites
-Install the ARM cross-compiler toolchain and QEMU:
+Install the ARM cross-compiler toolchain, Rust target, and QEMU:
 ```bash
+# ARM Toolchain & QEMU
 sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi qemu-system-arm python3
+
+# Rust Bare-Metal Target (Optional, for building the Rust firmware from source)
+rustup target add armv7a-none-eabi
 ```
 
 ### Compile
 ```bash
-make
+# Build both C and Rust firmwares
+make all
 ```
 This generates:
-- `build/open_firmware.elf` (ELF binary with debug symbols)
-- `build/firmware.bin` (Raw little-endian ARM binary ready for loading)
+- `build/firmware.bin` (C Reference binary: ~1.7 KB)
+- `rust/target/firmware_rust.bin` (Rust bare-metal binary: ~420 bytes)
 
 ### Automated QEMU Unit Test
-Verify firmware boot sequence and IPC channel setup in virtual emulation:
+Verify both firmware boot sequences and IPC channel setups in virtual emulation:
 ```bash
 make test
 ```

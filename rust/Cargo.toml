@@ -1,0 +1,14 @@
+[package]
+name = "open-fthd-rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Carlos Alberto <contato@programandosolucoes.com.br>"]
+license = "GPL-2.0-only"
+description = "Clean-room bare-metal Rust firmware for Broadcom BCM1570 FaceTime HD PCIe ISP"
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+codegen-units = 1
+overflow-checks = false

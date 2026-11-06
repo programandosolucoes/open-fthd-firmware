@@ -16,8 +16,9 @@ OBJS   := $(OBJS:.S=.o)
 
 TARGET_ELF = build/open_firmware.elf
 TARGET_BIN = build/firmware.bin
+RUST_BIN   = rust/target/firmware_rust.bin
 
-all: $(TARGET_BIN)
+all: $(TARGET_BIN) rust
 
 build:
 	mkdir -p build
@@ -34,18 +35,30 @@ $(TARGET_ELF): $(OBJS) linker.ld | build
 
 $(TARGET_BIN): $(TARGET_ELF)
 	$(OBJCOPY) -O binary $< $@
-	@echo "Generated clean-room firmware binary: $@"
+	@echo "Generated clean-room C firmware binary: $@"
 	@ls -lh $@
+
+rust:
+	@echo "=== Building OpenFTHD (Bare-Metal Rust) ==="
+	@make -C rust all
 
 disasm: $(TARGET_ELF)
 	$(OBJDUMP) -d $< > build/disasm.txt
 	@echo "Disassembly saved to build/disasm.txt"
 
-test: $(TARGET_BIN)
-	@echo "Running automated QEMU emulation test..."
+test: $(TARGET_BIN) rust
+	@echo "=========================================="
+	@echo "1. Running C Reference Firmware QEMU Test:"
+	@echo "=========================================="
 	python3 tests/test_qemu.py
+	@echo ""
+	@echo "=========================================="
+	@echo "2. Running Rust Bare-Metal Firmware QEMU Test:"
+	@echo "=========================================="
+	python3 tests/test_qemu_rust.py
 
 clean:
 	rm -rf build src/*.o
+	make -C rust clean
 
-.PHONY: all clean disasm test
+.PHONY: all clean disasm test rust
