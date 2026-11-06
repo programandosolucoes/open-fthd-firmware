@@ -41,7 +41,11 @@ disasm: $(TARGET_ELF)
 	$(OBJDUMP) -d $< > build/disasm.txt
 	@echo "Disassembly saved to build/disasm.txt"
 
+test: $(TARGET_BIN)
+	@echo "Running automated QEMU emulation test..."
+	python3 tests/test_qemu.py
+
 clean:
 	rm -rf build src/*.o
 
-.PHONY: all clean disasm
+.PHONY: all clean disasm test

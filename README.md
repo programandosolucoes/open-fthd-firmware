@@ -48,16 +48,19 @@ This project uses **zero proprietary Apple code** or closed-source decompilation
 3. **ARM Boot & Architecture**:
    - Source: ARM Architecture Reference Manual (ARMv7-A/R).
 
-Full provenance details are documented in [`SOURCES.md`](SOURCES.md).
+Full provenance details and legal clean-room statements are documented in:
+- [English Technical Datasheet & Provenance Report](docs/DATASHEET_AND_PROVENANCE_REPORT.md)
+- [Relatório Técnico de Engenharia Reversa e Proveniência (Português)](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
+- [`SOURCES.md`](SOURCES.md)
 
 ---
 
-## 3. Building the Firmware
+## 3. Building and Testing the Firmware
 
 ### Prerequisites
-Install the ARM cross-compiler toolchain:
+Install the ARM cross-compiler toolchain and QEMU:
 ```bash
-sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi
+sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi qemu-system-arm python3
 ```
 
 ### Compile
@@ -68,7 +71,23 @@ This generates:
 - `build/open_firmware.elf` (ELF binary with debug symbols)
 - `build/firmware.bin` (Raw little-endian ARM binary ready for loading)
 
+### Automated QEMU Unit Test
+Verify firmware boot sequence and IPC channel setup in virtual emulation:
+```bash
+make test
+```
+
 ---
 
-## 4. License
+## 4. Multi-Resolution Support
+
+Unlike Apple's closed firmware which artificially restricted capture to 720p@30fps, OpenFTHD implements full resolution profiles for the OmniVision OV5650:
+- **5.0 Megapixel (QSXGA)**: 2592 x 1944 @ 15 fps
+- **Full HD 1080p**: 1920 x 1080 @ 30 fps
+- **HD 720p**: 1280 x 720 @ 60 fps & 30 fps
+- **VGA**: 640 x 480 @ 60 fps
+
+---
+
+## 5. License
 GNU General Public License v2.0 (GPL-2.0-only).
