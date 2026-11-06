@@ -146,7 +146,7 @@ class FTHDCamera:
         """
         # struct v4l2_selection:
         # __u32 type, __u32 target, __u32 flags, struct v4l2_rect { __s32 left, top, width, height }, __u32 reserved[9]
-        data = struct.pack("IIIIiiii9I",
+        data = struct.pack("IIIiiii9I",
             V4L2_BUF_TYPE_VIDEO_CAPTURE,
             V4L2_SEL_TGT_CROP,
             0, # flags
