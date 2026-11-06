@@ -1,0 +1,15 @@
+[package]
+name = "fthd-ctl"
+version = "0.1.0"
+edition = "2021"
+authors = ["OpenFTHD Contributors"]
+description = "Clean-room Safe Rust API & CLI Tool for FaceTime HD (BCM1570 PCIe) Camera Controls"
+license = "GPL-2.0-only"
+
+[lib]
+name = "fthd_ctl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fthd-ctl"
+path = "src/main.rs"

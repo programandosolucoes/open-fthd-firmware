@@ -50,6 +50,7 @@ V4L2_CID_CONTRAST             = V4L2_CID_BASE + 1
 V4L2_CID_SATURATION           = V4L2_CID_BASE + 2
 V4L2_CID_HUE                  = V4L2_CID_BASE + 3
 V4L2_CID_AUTO_WHITE_BALANCE   = V4L2_CID_BASE + 12
+V4L2_CID_ILLUMINATORS_1       = V4L2_CID_BASE + 37
 
 V4L2_CID_CAMERA_CLASS_BASE    = 0x009a0900
 V4L2_CID_WIDE_DYNAMIC_RANGE   = V4L2_CID_CAMERA_CLASS_BASE + 21
@@ -67,6 +68,22 @@ EXPOSURE_METERING_MODES = {
     "spot": 2,
     "matrix": 3,
 }
+
+LED_MODES = {
+    "auto": 0,
+    "off": 1,
+    "on": 2,
+}
+
+POWER_PROFILES = {
+    "perf": 0,
+    "performance": 0,
+    "balanced": 1,
+    "low": 2,
+    "aggressive": 2,
+}
+
+SYSFS_PARAMS_DIR = "/sys/module/facetimehd/parameters"
 
 class FTHDCamera:
     """High-level, friendly controller for FaceTime HD camera hardware features."""
@@ -143,6 +160,71 @@ class FTHDCamera:
         """Reset digital zoom to full frame."""
         self.set_hardware_crop(0, 0, 1920, 1080)
 
+    def set_led(self, mode: str):
+        """
+        Configure camera indicator LED:
+        - 'auto': Illuminated automatically during active video stream
+        - 'off': Force indicator light OFF (privacy stealth mode)
+        - 'on': Force indicator light continuously ON
+        """
+        mode_lower = mode.lower()
+        if mode_lower not in LED_MODES:
+            raise ValueError(f"Unknown LED mode '{mode}'. Choose from: {list(LED_MODES.keys())}")
+        val = LED_MODES[mode_lower]
+        try:
+            self.set_control(V4L2_CID_ILLUMINATORS_1, val)
+            print(f"[+] Camera Indicator LED set to: {mode_lower.upper()} (val={val})")
+        except OSError:
+            # Fallback to sysfs if available
+            self.write_driver_param("led_mode", str(val))
+            print(f"[+] Camera Indicator LED set via sysfs to: {mode_lower.upper()} (val={val})")
+
+    def get_led(self) -> str:
+        """Query camera indicator LED mode."""
+        try:
+            val = self.get_control(V4L2_CID_ILLUMINATORS_1)
+        except OSError:
+            val_str = self.read_driver_param("led_mode")
+            val = int(val_str) if val_str is not None else 0
+        names = {0: "Auto", 1: "Always Off (Stealth)", 2: "Always On"}
+        return names.get(val, str(val))
+
+    @staticmethod
+    def read_driver_param(param_name: str):
+        path = os.path.join(SYSFS_PARAMS_DIR, param_name)
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return f.read().strip()
+        return None
+
+    @staticmethod
+    def write_driver_param(param_name: str, value: str):
+        path = os.path.join(SYSFS_PARAMS_DIR, param_name)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Sysfs parameter {path} not found.")
+        with open(path, "w") as f:
+            f.write(str(value))
+
+    def set_power_profile(self, profile: str):
+        """
+        Configure ISP & sensor energy profile:
+        - 'perf' / 'performance': Low latency, maintains ISP/DDR clocks active
+        - 'balanced': Default, standard standby when stream idle
+        - 'low' / 'aggressive': Deep sensor power off on idle
+        """
+        prof_lower = profile.lower()
+        if prof_lower not in POWER_PROFILES:
+            raise ValueError(f"Unknown power profile '{profile}'. Choose from: {list(POWER_PROFILES.keys())}")
+        val = POWER_PROFILES[prof_lower]
+        self.write_driver_param("power_save", str(val))
+        print(f"[+] Driver power profile set to: {prof_lower.upper()} (val={val})")
+
+    def get_power_profile(self) -> str:
+        """Query current power saving profile."""
+        val = self.read_driver_param("power_save")
+        names = {"0": "High Performance", "1": "Balanced (Default)", "2": "Aggressive Low Power"}
+        return names.get(val, str(val)) if val is not None else "Unknown"
+
     def set_digital_zoom(self, zoom_factor: float):
         """
         Convenience helper: apply center zoom (e.g. 1.0x to 3.0x).
@@ -168,6 +250,8 @@ def main():
     parser.add_argument("--info", action="store_true", help="Display camera status and available controls")
     parser.add_argument("--metering", choices=["average", "center", "spot", "matrix"], help="Set exposure metering")
     parser.add_argument("--hdr", choices=["on", "off"], help="Enable/disable hardware HDR / DRC")
+    parser.add_argument("--led", choices=["auto", "off", "on"], help="Set camera status indicator LED mode")
+    parser.add_argument("--power", choices=["perf", "balanced", "low"], help="Set ISP power saving profile")
     parser.add_argument("--crop", nargs=4, type=int, metavar=("LEFT", "TOP", "WIDTH", "HEIGHT"), help="Set ePTZ crop")
     parser.add_argument("--zoom", type=float, help="Set digital zoom factor (e.g. 1.5, 2.0)")
     parser.add_argument("--reset-crop", action="store_true", help="Reset crop to full frame")
@@ -182,6 +266,10 @@ def main():
             cam.set_exposure_metering(args.metering)
         if args.hdr:
             cam.set_hdr(args.hdr == "on")
+        if args.led:
+            cam.set_led(args.led)
+        if args.power:
+            cam.set_power_profile(args.power)
         if args.crop:
             cam.set_hardware_crop(*args.crop)
         if args.zoom:
@@ -209,6 +297,13 @@ def main():
                 print(f"  Exposure Metering:  {names.get(met, met)}")
             except OSError:
                 pass
+            print(f"  Indicator LED Mode: {cam.get_led()}")
+            print(f"  Power Save Profile: {cam.get_power_profile()}")
+            if os.path.exists(SYSFS_PARAMS_DIR):
+                print("  Driver Parameters (/sys/module/facetimehd/parameters):")
+                for p in sorted(os.listdir(SYSFS_PARAMS_DIR)):
+                    val = cam.read_driver_param(p)
+                    print(f"    - {p}: {val}")
 
 if __name__ == "__main__":
     main()

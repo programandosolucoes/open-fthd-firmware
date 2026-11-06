@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # OpenFTHD: Open-Source Firmware for Broadcom BCM1570 FaceTime HD Camera
 
+export PATH := $(HOME)/.cargo/bin:$(PATH)
+
 CC      = arm-none-eabi-gcc
 LD      = arm-none-eabi-ld
 OBJCOPY = arm-none-eabi-objcopy
@@ -18,7 +20,17 @@ TARGET_ELF = build/open_firmware.elf
 TARGET_BIN = build/firmware.bin
 RUST_BIN   = rust/target/firmware_rust.bin
 
-all: $(TARGET_BIN) rust
+all: $(TARGET_BIN) rust tools
+
+tools: tools-c tools-rust
+
+tools-c:
+	@echo "=== Building C Tools & libfthd ==="
+	@make -C tools/c all
+
+tools-rust:
+	@echo "=== Building Rust Tools & fthd-ctl ==="
+	@cd tools/rust && cargo build --release
 
 build:
 	mkdir -p build
@@ -60,5 +72,7 @@ test: $(TARGET_BIN) rust
 clean:
 	rm -rf build src/*.o
 	make -C rust clean
+	make -C tools/c clean
+	cd tools/rust && cargo clean
 
-.PHONY: all clean disasm test rust
+.PHONY: all clean disasm test rust tools tools-c tools-rust

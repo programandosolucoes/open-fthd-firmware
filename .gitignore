@@ -6,4 +6,9 @@ rust/target/CACHEDIR.TAG
 rust/target/armv7a-none-eabi/
 rust/target/release/
 rust/target/debug/
+tools/c/*.o
+tools/c/*.a
+tools/c/*.so
+tools/c/fthd-tool
+tools/rust/target/
 .DS_Store
