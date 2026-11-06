@@ -8,6 +8,9 @@ pub const FTHD_NUM_CHANNELS: usize = 7;
 pub const DIR_HOST_TO_TARGET: u32 = 0;
 pub const DIR_TARGET_TO_HOST: u32 = 1;
 
+/// Extended Compute / Hardware Offload Channel name
+pub const CHAN_NAME_COMPUTE: &[u8] = b"COMPUTE";
+
 /// IPC Channel descriptor matching the Linux bcwc_pcie kernel layout.
 #[repr(C, packed)]
 pub struct ChannelDesc {

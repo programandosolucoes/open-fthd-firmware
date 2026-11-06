@@ -27,6 +27,9 @@
 #define CHAN_NAME_BUF_T2H       "BUF_T2H"
 #define CHAN_NAME_IO_T2H        "IO_T2H"
 
+/* Extended Compute / Hardware Offload Channel (for NEON SIMD & DSP acceleration) */
+#define CHAN_NAME_COMPUTE       "COMPUTE"
+
 /* Channel Types */
 enum fthd_channel_type {
     CHAN_TYPE_STREAM = 1,
