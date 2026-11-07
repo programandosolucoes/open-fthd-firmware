@@ -73,9 +73,11 @@ This project uses **zero proprietary Apple code** or closed-source decompilation
 3. **ARM Architecture Specification**:
    - ARM Architecture Reference Manual (ARMv7-A/R).
 
-Full provenance and legal declarations are available in:
+Full provenance, study dossiers, and reference source code are available in:
+- [Dossiê Técnico de Engenharia Reversa e Códigos-Base (Português)](docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md)
+- [Diretório de Códigos-Fonte de Referência (`references/`)](references/README.md)
 - [English Datasheet and Provenance Report](docs/DATASHEET_AND_PROVENANCE_REPORT.md)
-- [Relatório Técnico de Engenharia Reversa e Proveniência (Português)](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
+- [Relatório Técnico de Proveniência (Português)](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
 - [`SOURCES.md`](SOURCES.md)
 
 ---
