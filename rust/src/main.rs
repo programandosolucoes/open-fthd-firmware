@@ -98,8 +98,9 @@ pub extern "C" fn rust_entry() -> ! {
     // 6. Write startup greeting to Host Terminal channel
     ipc::terminal_write(b"OpenFTHD (Rust Bare-Metal v0.1.0) ready\n");
 
-    // 7. Low-power idle event loop waiting for Mailbox interrupts
+    // 7. Active command processing loop
     loop {
+        ipc::poll_commands();
         unsafe {
             core::arch::asm!("wfe");
         }

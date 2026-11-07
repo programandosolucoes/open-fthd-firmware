@@ -73,6 +73,8 @@ enum fthd_isp_cmds {
     CISP_CMD_TIMEPROFILE_STOP               = 0x8,
     CISP_CMD_TIMEPROFILE_SHOW               = 0x9,
     CISP_CMD_POWER_DOWN                     = 0xa,
+
+    /* Channel Management Commands (0x100+) */
     CISP_CMD_CH_START                       = 0x100,
     CISP_CMD_CH_STOP                        = 0x101,
     CISP_CMD_CH_RESET                       = 0x102,
@@ -87,10 +89,94 @@ enum fthd_isp_cmds {
     CISP_CMD_CH_I2C_READ                    = 0x10b,
     CISP_CMD_CH_I2C_WRITE                   = 0x10c,
     CISP_CMD_CH_INFO_GET                    = 0x10d,
+    CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET     = 0x10e,
+    CISP_CMD_CH_BUFFER_RECYCLE_START        = 0x10f,
     CISP_CMD_CH_CAPTURE_MODE_SET            = 0x112,
     CISP_CMD_CH_CAMERA_MIPI_FREQ_SELECT     = 0x11b,
+
+    /* Auto-Exposure Controls (0x200+) */
     CISP_CMD_CH_AE_START                    = 0x200,
     CISP_CMD_CH_AE_STOP                     = 0x201,
+    CISP_CMD_CH_AE_FRAME_RATE_MAX_SET       = 0x208,
+    CISP_CMD_CH_AE_FRAME_RATE_MIN_SET       = 0x20a,
+    CISP_CMD_CH_AE_WINDOW_PARAM_SET         = 0x21e, /* Photometry Metering */
+
+    /* Auto White Balance (0x300+) */
+    CISP_CMD_CH_AWB_START                   = 0x300,
+    CISP_CMD_CH_AWB_STOP                    = 0x301,
+
+    /* Status LED & Flash Controls (0x600+) */
+    CISP_CMD_CH_LED_TORCH_OFF               = 0x602,
+    CISP_CMD_CH_LED_TORCH_ON                = 0x603,
+    CISP_CMD_CH_STATUS_LED_DEBUG_SET        = 0x608,
+
+    /* Hardware Cropping / ePTZ (0x800+) */
+    CISP_CMD_CH_CROP_GET                    = 0x800,
+    CISP_CMD_CH_CROP_SET                    = 0x801,
+
+    /* Color & Post-Processing (0xa00+) */
+    CISP_CMD_CH_COLOR_SATURATION_SET        = 0xa01,
+
+    /* Output Resolution & Format (0xb00+) */
+    CISP_CMD_CH_OUTPUT_CONFIG_GET           = 0xb00,
+    CISP_CMD_CH_OUTPUT_CONFIG_SET           = 0xb01,
+    CISP_CMD_CH_SCALER_BRIGHTNESS_SET       = 0xb02,
+    CISP_CMD_CH_SCALER_CONTRAST_SET         = 0xb03,
+    CISP_CMD_CH_SCALER_SATURATION_SET       = 0xb04,
+    CISP_CMD_CH_SCALER_HUE_SET              = 0xb05,
+
+    /* Dynamic Range Compression / HDR (0xc00+) */
+    CISP_CMD_CH_DRC_START                   = 0xc00,
+    CISP_CMD_CH_DRC_STOP                    = 0xc01,
 };
+
+/* Command Payload Structures matching Host Linux Driver */
+struct __attribute__((packed)) fthd_cmd_crop_set {
+    uint32_t channel;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+};
+
+struct __attribute__((packed)) fthd_cmd_output_config {
+    uint32_t channel;
+    uint32_t x1;
+    uint32_t y1;
+    uint32_t unknown3;
+    uint32_t pixelformat; /* 1 = YUYV */
+    uint32_t x2;
+    uint32_t x3;
+};
+
+struct __attribute__((packed)) fthd_cmd_int_param {
+    uint32_t channel;
+    int32_t  value;
+};
+
+/* Firmware Internal ISP State */
+struct fthd_isp_state {
+    uint32_t streaming_active;
+    uint32_t crop_x;
+    uint32_t crop_y;
+    uint32_t crop_width;
+    uint32_t crop_height;
+    uint32_t output_width;
+    uint32_t output_height;
+    uint32_t pixelformat;
+    int32_t  brightness;
+    int32_t  contrast;
+    int32_t  saturation;
+    int32_t  hue;
+    uint32_t awb_enabled;
+    uint32_t ae_metering;
+    uint32_t drc_enabled;
+    uint32_t led_mode;
+    uint32_t frame_sequence;
+};
+
+extern struct fthd_isp_state g_isp_state;
+extern int ipc_dispatch_command(uint32_t opcode, const void *payload, uint32_t len);
+extern void ipc_poll_commands(void);
 
 #endif /* _OPENFTHD_IPC_H */

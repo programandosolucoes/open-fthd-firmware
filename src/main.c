@@ -15,6 +15,7 @@ extern void ipc_init(void);
 extern uint32_t ipc_get_channel_table_addr(void);
 extern uint32_t ipc_get_num_channels(void);
 extern void ipc_terminal_write(const char *msg);
+extern void ipc_poll_commands(void);
 extern int sensor_ov5650_init(void);
 
 void fthd_main(void)
@@ -35,9 +36,9 @@ void fthd_main(void)
     /* 5. Initialize Sensor (OV5650) */
     sensor_ov5650_init();
 
-    /* 6. Main execution loop: handle host commands */
+    /* 6. Main execution loop: actively process host commands */
     while (1) {
-        /* Check if host sent a command or signalled an interrupt */
+        ipc_poll_commands();
         __asm__ volatile("wfe");
     }
 }

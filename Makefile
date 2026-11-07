@@ -68,6 +68,11 @@ test: $(TARGET_BIN) rust
 	@echo "2. Running Rust Bare-Metal Firmware QEMU Test:"
 	@echo "=========================================="
 	python3 tests/test_qemu_rust.py
+	@echo ""
+	@echo "=========================================="
+	@echo "3. Running Hardware ISP Command Dispatcher Test:"
+	@echo "=========================================="
+	python3 tests/test_commands.py
 
 clean:
 	rm -rf build src/*.o

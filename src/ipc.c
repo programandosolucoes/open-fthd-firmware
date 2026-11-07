@@ -11,6 +11,8 @@
 #include "fthd_ipc.h"
 #include "bcm1570_hw.h"
 
+void ipc_terminal_write(const char *msg);
+
 /* Memory regions reserved in internal SRAM for IPC buffers */
 #define IPC_BASE_OFFSET         0x80000
 #define RINGBUF_SIZE            1024
@@ -83,6 +85,148 @@ uint32_t ipc_get_channel_table_addr(void)
 uint32_t ipc_get_num_channels(void)
 {
     return MAX_CHANNELS;
+}
+
+struct fthd_isp_state g_isp_state = {
+    .streaming_active = 0,
+    .crop_x = 0,
+    .crop_y = 0,
+    .crop_width = 1280,
+    .crop_height = 720,
+    .output_width = 1280,
+    .output_height = 720,
+    .pixelformat = 1, /* YUYV */
+    .brightness = 128,
+    .contrast = 128,
+    .saturation = 128,
+    .hue = 128,
+    .awb_enabled = 1,
+    .ae_metering = 3, /* Matrix default */
+    .drc_enabled = 0,
+    .led_mode = 0,    /* Auto */
+    .frame_sequence = 0,
+};
+
+extern int sensor_ov5650_init(void);
+
+int ipc_dispatch_command(uint32_t opcode, const void *payload, uint32_t len)
+{
+    (void)len;
+
+    switch (opcode) {
+    case CISP_CMD_CH_START:
+        g_isp_state.streaming_active = 1;
+        sensor_ov5650_init();
+        ipc_terminal_write("CH_START: Sensor pipeline active\n");
+        break;
+
+    case CISP_CMD_CH_STOP:
+        g_isp_state.streaming_active = 0;
+        ipc_terminal_write("CH_STOP: Standby mode\n");
+        break;
+
+    case CISP_CMD_CH_CROP_SET:
+        if (payload) {
+            const struct fthd_cmd_crop_set *crop = (const struct fthd_cmd_crop_set *)payload;
+            g_isp_state.crop_x = crop->x;
+            g_isp_state.crop_y = crop->y;
+            g_isp_state.crop_width = crop->width;
+            g_isp_state.crop_height = crop->height;
+            ipc_terminal_write("CROP_SET: Applied ePTZ window\n");
+        }
+        break;
+
+    case CISP_CMD_CH_OUTPUT_CONFIG_SET:
+        if (payload) {
+            const struct fthd_cmd_output_config *out = (const struct fthd_cmd_output_config *)payload;
+            g_isp_state.output_width = out->x1;
+            g_isp_state.output_height = out->y1;
+            g_isp_state.pixelformat = out->pixelformat;
+            ipc_terminal_write("OUTPUT_CONFIG_SET: Resolution updated\n");
+        }
+        break;
+
+    case CISP_CMD_CH_SCALER_BRIGHTNESS_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.brightness = param->value;
+        }
+        break;
+
+    case CISP_CMD_CH_SCALER_CONTRAST_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.contrast = param->value;
+        }
+        break;
+
+    case CISP_CMD_CH_SCALER_SATURATION_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.saturation = param->value;
+        }
+        break;
+
+    case CISP_CMD_CH_SCALER_HUE_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.hue = param->value;
+        }
+        break;
+
+    case CISP_CMD_CH_AWB_START:
+        g_isp_state.awb_enabled = 1;
+        break;
+
+    case CISP_CMD_CH_AWB_STOP:
+        g_isp_state.awb_enabled = 0;
+        break;
+
+    case CISP_CMD_CH_AE_WINDOW_PARAM_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.ae_metering = (uint32_t)param->value;
+        }
+        break;
+
+    case CISP_CMD_CH_DRC_START:
+        g_isp_state.drc_enabled = 1;
+        ipc_terminal_write("DRC_START: Tone curve adaptation enabled\n");
+        break;
+
+    case CISP_CMD_CH_DRC_STOP:
+        g_isp_state.drc_enabled = 0;
+        break;
+
+    case CISP_CMD_CH_STATUS_LED_DEBUG_SET:
+        if (payload) {
+            const struct fthd_cmd_int_param *param = (const struct fthd_cmd_int_param *)payload;
+            g_isp_state.led_mode = (uint32_t)param->value;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    /* Acknowledge command on IO_T2H ringbuffer */
+    volatile struct fthd_cmd_header *resp = (volatile struct fthd_cmd_header *)&g_ringbuffers[6][0];
+    resp->opcode = opcode;
+    resp->status = 0; /* Success */
+
+    return 0;
+}
+
+void ipc_poll_commands(void)
+{
+    /* Check IO ringbuffer (Channel 3) for pending command header */
+    volatile struct fthd_cmd_header *hdr = (volatile struct fthd_cmd_header *)&g_ringbuffers[3][0];
+    if (hdr->opcode != 0) {
+        uint32_t op = hdr->opcode;
+        const void *payload = (const void *)&g_ringbuffers[3][sizeof(struct fthd_cmd_header)];
+        ipc_dispatch_command(op, payload, 32);
+        hdr->opcode = 0; /* Clear after processing */
+    }
 }
 
 void ipc_terminal_write(const char *msg)
