@@ -74,11 +74,12 @@ This project uses **zero proprietary Apple code** or closed-source decompilation
    - ARM Architecture Reference Manual (ARMv7-A/R).
 
 Full provenance, study dossiers, and reference source code are available in:
-- [Dossiê Técnico de Engenharia Reversa e Códigos-Base (Português)](docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md)
-- [Diretório de Códigos-Fonte de Referência (`references/`)](references/README.md)
-- [English Datasheet and Provenance Report](docs/DATASHEET_AND_PROVENANCE_REPORT.md)
-- [Relatório Técnico de Proveniência (Português)](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
-- [`SOURCES.md`](SOURCES.md)
+- **Technical Study Dossier & Base Sources (English)**: [docs/REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md](docs/REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md)
+- **Dossiê Técnico de Engenharia Reversa e Códigos-Base (Português)**: [docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md](docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md)
+- **Upstream Reference Source Mirror**: [`references/`](references/README.md)
+- **Hardware Datasheet & Provenance Report (English)**: [docs/DATASHEET_AND_PROVENANCE_REPORT.md](docs/DATASHEET_AND_PROVENANCE_REPORT.md)
+- **Relatório Técnico de Proveniência (Português)**: [docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
+- **Public Domain & Clean-Room Sources Register**: [`SOURCES.md`](SOURCES.md)
 
 ---
 
