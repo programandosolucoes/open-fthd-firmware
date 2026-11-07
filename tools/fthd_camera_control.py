@@ -62,6 +62,49 @@ V4L2_SEL_TGT_CROP             = 0x0000
 V4L2_SEL_TGT_CROP_DEFAULT     = 0x0001
 V4L2_SEL_TGT_CROP_BOUNDS      = 0x0002
 
+# Compute Channel (Channel 7) Protocol Definitions
+COMPUTE_OP_NEON_YUYV_TO_RGB      = 0x10
+COMPUTE_OP_NEON_CONVOLUTION_3X3  = 0x11
+COMPUTE_OP_NEON_DOT_PRODUCT      = 0x12
+COMPUTE_OP_AES_128_ENCRYPT       = 0x20
+COMPUTE_OP_AES_128_DECRYPT       = 0x21
+COMPUTE_OP_AES_128_CBC_ENCRYPT   = 0x22
+COMPUTE_OP_BENCHMARK             = 0x30
+
+class FTHDCompute:
+    """Interface and packet builder for BCM1570 Channel 7 Compute Engine."""
+
+    @staticmethod
+    def pack_compute_header(opcode: int, sequence: int, data_len: int) -> bytes:
+        # struct fthd_compute_header { uint32_t opcode, flags, data_len, sequence; }
+        return struct.pack("<IIII", opcode, 0, data_len, sequence)
+
+    @staticmethod
+    def pack_aes_request(key: bytes, plaintext: bytes, iv: bytes = None) -> bytes:
+        if len(key) != 16:
+            raise ValueError("AES-128 requires exactly 16 bytes key")
+        if iv is None:
+            iv = b"\x00" * 16
+        padded = plaintext + b"\x00" * ((16 - (len(plaintext) % 16)) % 16)
+        if len(padded) > 64:
+            padded = padded[:64]
+        num_blocks = len(padded) // 16
+        # struct fthd_compute_aes_payload: key[16], iv[16], num_blocks(u32), data[64]
+        payload = key + iv + struct.pack("<I", num_blocks) + padded.ljust(64, b"\x00")
+        hdr = FTHDCompute.pack_compute_header(COMPUTE_OP_AES_128_ENCRYPT, 1, len(payload))
+        return hdr + payload
+
+    @staticmethod
+    def pack_neon_dot_request(vec_a: list, vec_b: list) -> bytes:
+        length = min(len(vec_a), len(vec_b), 16)
+        # struct fthd_compute_neon_dot_payload: length(u32), vec_a[16](int16), vec_b[16](int16)
+        a_padded = list(vec_a[:length]) + [0] * (16 - length)
+        b_padded = list(vec_b[:length]) + [0] * (16 - length)
+        payload = struct.pack("<I", length) + struct.pack("<16h", *a_padded) + struct.pack("<16h", *b_padded)
+        hdr = FTHDCompute.pack_compute_header(COMPUTE_OP_NEON_DOT_PRODUCT, 1, len(payload))
+        return hdr + payload
+
+
 EXPOSURE_METERING_MODES = {
     "average": 0,
     "center": 1,
@@ -255,7 +298,34 @@ def main():
     parser.add_argument("--crop", nargs=4, type=int, metavar=("LEFT", "TOP", "WIDTH", "HEIGHT"), help="Set ePTZ crop")
     parser.add_argument("--zoom", type=float, help="Set digital zoom factor (e.g. 1.5, 2.0)")
     parser.add_argument("--reset-crop", action="store_true", help="Reset crop to full frame")
+    parser.add_argument("--compute-aes", type=str, metavar="PLAINTEXT", help="Test Channel 7 AES-128 Compute packet creation")
+    parser.add_argument("--compute-neon", action="store_true", help="Test Channel 7 NEON SIMD vector dot product packet creation")
     args = parser.parse_args()
+
+    if args.compute_aes:
+        key = b"0123456789abcdef"
+        data = args.compute_aes.encode("utf-8")
+        packet = FTHDCompute.pack_aes_request(key, data)
+        print(f"[+] Channel 7 Compute AES-128 Packet Created:")
+        print(f"    Payload size: {len(packet)} bytes")
+        print(f"    Key:          {key.hex()}")
+        print(f"    Plaintext:    {data.hex()} ('{args.compute_aes}')")
+        print(f"    Packet Hex:   {packet[:32].hex()}... (total {len(packet)} bytes)")
+        if not args.info and not args.metering and not args.hdr and not args.led and not args.crop and not args.zoom:
+            sys.exit(0)
+
+    if args.compute_neon:
+        vec_a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        vec_b = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+        packet = FTHDCompute.pack_neon_dot_request(vec_a, vec_b)
+        expected = sum(x * y for x, y in zip(vec_a, vec_b))
+        print(f"[+] Channel 7 Compute NEON Dot Product Packet Created:")
+        print(f"    Vector A:     {vec_a}")
+        print(f"    Vector B:     {vec_b}")
+        print(f"    Expected Dot: {expected}")
+        print(f"    Packet Hex:   {packet.hex()}")
+        if not args.info and not args.metering and not args.hdr and not args.led and not args.crop and not args.zoom:
+            sys.exit(0)
 
     if not os.path.exists(args.device):
         print(f"[!] Device {args.device} not found. (Driver loaded?)")

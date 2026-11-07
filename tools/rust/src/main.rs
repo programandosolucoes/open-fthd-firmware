@@ -18,6 +18,8 @@ fn print_usage(prog: &str) {
     println!("  --led <auto|off|on>   Set camera indicator LED mode");
     println!("  --power <perf|bal|low>Set driver energy profile");
     println!("  --reset               Reset crop window to full 1280x720 frame");
+    println!("  --compute-aes <text>  Build and test Channel 7 AES-128 Compute packet");
+    println!("  --compute-neon        Build and test Channel 7 NEON SIMD Dot Product packet");
     println!("  --help                Show this didactic guide\n");
 }
 
@@ -38,10 +40,21 @@ fn main() {
     let mut led: Option<LedMode> = None;
     let mut power: Option<PowerProfile> = None;
     let mut reset_crop = false;
+    let mut compute_aes: Option<String> = None;
+    let mut compute_neon = false;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--compute-aes" => {
+                if i + 1 < args.len() {
+                    compute_aes = Some(args[i + 1].clone());
+                    i += 1;
+                }
+            }
+            "--compute-neon" => {
+                compute_neon = true;
+            }
             "--device" | "-d" => {
                 if i + 1 < args.len() {
                     device_path = args[i + 1].clone();
@@ -111,6 +124,38 @@ fn main() {
             Err(e) => eprintln!("[!] Failed to set power profile: {} (needs root)", e),
         }
     }
+
+    if let Some(ref text) = compute_aes {
+        let key = b"0123456789abcdef";
+        let packet = fthd_ctl::compute::build_aes_packet(key, text.as_bytes());
+        println!("[+] Channel 7 Compute AES-128 Packet Built ({} bytes):", packet.len());
+        println!("    Key:       {:?}", std::str::from_utf8(key).unwrap_or(""));
+        println!("    Plaintext: {}", text);
+        println!("    Opcode:    0x{:02x} (OP_AES_128_ENCRYPT)", packet[0]);
+    }
+
+    if compute_neon {
+        let a = [1i16, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let b = [16i16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+        let packet = fthd_ctl::compute::build_neon_dot_packet(&a, &b);
+        let dot = fthd_ctl::compute::sim_neon_dot(&a, &b);
+        println!("[+] Channel 7 Compute NEON Dot Product Packet Built ({} bytes):", packet.len());
+        println!("    Vectors:   16 elements (i16)");
+        println!("    Expected:  {}", dot);
+        println!("    Opcode:    0x{:02x} (OP_NEON_DOT_PRODUCT)", packet[0]);
+    }
+
+    if (compute_aes.is_some() || compute_neon)
+        && !show_status
+        && zoom.is_none()
+        && metering.is_none()
+        && hdr.is_none()
+        && led.is_none()
+        && !reset_crop
+    {
+        return;
+    }
+
 
     let cam = match FthdCamera::open(&device_path) {
         Ok(c) => c,

@@ -44,7 +44,7 @@ def run_test():
 
     found_chan_ctrl = False
     for line in trace_lines:
-        if "c3000" in line and "0x7" in line:
+        if "c3000" in line and ("0x8" in line or "0x7" in line):
             print(f"  [+] Detected Mailbox register write: {line.strip()}")
             found_chan_ctrl = True
 

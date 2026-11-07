@@ -292,3 +292,67 @@ void fthd_print_status(fthd_device_t *dev)
     }
     printf("=====================================================\n");
 }
+
+int32_t fthd_compute_neon_dot_sim(const int16_t *a, const int16_t *b, uint32_t length)
+{
+    int32_t acc = 0;
+    for (uint32_t i = 0; i < length; i++) {
+        acc += (int32_t)a[i] * (int32_t)b[i];
+    }
+    return acc;
+}
+
+int fthd_compute_build_aes_packet(uint8_t *buf, size_t max_len, const uint8_t *key, const uint8_t *in, size_t in_len)
+{
+    size_t total_len = sizeof(struct fthd_tool_compute_header) + sizeof(struct fthd_tool_compute_aes_payload);
+    if (!buf || max_len < total_len) {
+        return -EINVAL;
+    }
+    memset(buf, 0, total_len);
+
+    struct fthd_tool_compute_header *hdr = (struct fthd_tool_compute_header *)buf;
+    struct fthd_tool_compute_aes_payload *payload = (struct fthd_tool_compute_aes_payload *)(buf + sizeof(*hdr));
+
+    hdr->opcode = FTHD_TOOL_COMPUTE_OP_AES_128_ENCRYPT;
+    hdr->flags = 0;
+    hdr->data_len = sizeof(*payload);
+    hdr->sequence = 1;
+
+    if (key) {
+        memcpy(payload->key, key, 16);
+    }
+    uint32_t blocks = (uint32_t)((in_len + 15) / 16);
+    if (blocks > 4) blocks = 4;
+    payload->num_blocks = blocks;
+
+    if (in && in_len > 0) {
+        size_t cpy = in_len > sizeof(payload->data) ? sizeof(payload->data) : in_len;
+        memcpy(payload->data, in, cpy);
+    }
+    return (int)total_len;
+}
+
+int fthd_compute_build_neon_packet(uint8_t *buf, size_t max_len, const int16_t *a, const int16_t *b, uint32_t length)
+{
+    size_t total_len = sizeof(struct fthd_tool_compute_header) + sizeof(struct fthd_tool_compute_neon_dot_payload);
+    if (!buf || max_len < total_len) {
+        return -EINVAL;
+    }
+    memset(buf, 0, total_len);
+
+    struct fthd_tool_compute_header *hdr = (struct fthd_tool_compute_header *)buf;
+    struct fthd_tool_compute_neon_dot_payload *payload = (struct fthd_tool_compute_neon_dot_payload *)(buf + sizeof(*hdr));
+
+    hdr->opcode = FTHD_TOOL_COMPUTE_OP_NEON_DOT_PRODUCT;
+    hdr->flags = 0;
+    hdr->data_len = sizeof(*payload);
+    hdr->sequence = 1;
+
+    uint32_t len = length > 16 ? 16 : length;
+    payload->length = len;
+    if (a) memcpy(payload->vec_a, a, len * sizeof(int16_t));
+    if (b) memcpy(payload->vec_b, b, len * sizeof(int16_t));
+
+    return (int)total_len;
+}
+

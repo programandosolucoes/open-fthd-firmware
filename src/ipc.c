@@ -9,6 +9,7 @@
  */
 
 #include "fthd_ipc.h"
+#include "fthd_compute.h"
 #include "bcm1570_hw.h"
 
 void ipc_terminal_write(const char *msg);
@@ -75,6 +76,11 @@ void ipc_init(void)
     g_channels[6].type = CHAN_TYPE_RINGBUF;
     g_channels[6].size = RINGBUF_SIZE;
     g_channels[6].offset = (uint32_t)&g_ringbuffers[6];
+
+    fthd_strncpy(g_channels[7].name, CHAN_NAME_COMPUTE, CHANNEL_NAME_MAX_LEN);
+    g_channels[7].type = CHAN_TYPE_RINGBUF;
+    g_channels[7].size = RINGBUF_SIZE;
+    g_channels[7].offset = (uint32_t)&g_ringbuffers[7];
 }
 
 uint32_t ipc_get_channel_table_addr(void)
@@ -219,13 +225,29 @@ int ipc_dispatch_command(uint32_t opcode, const void *payload, uint32_t len)
 
 void ipc_poll_commands(void)
 {
-    /* Check IO ringbuffer (Channel 3) for pending command header */
+    /* 1. Check IO ringbuffer (Channel 3) for pending command header */
     volatile struct fthd_cmd_header *hdr = (volatile struct fthd_cmd_header *)&g_ringbuffers[3][0];
     if (hdr->opcode != 0) {
         uint32_t op = hdr->opcode;
         const void *payload = (const void *)&g_ringbuffers[3][sizeof(struct fthd_cmd_header)];
         ipc_dispatch_command(op, payload, 32);
         hdr->opcode = 0; /* Clear after processing */
+    }
+
+    /* 2. Check COMPUTE ringbuffer (Channel 7) for NEON SIMD / AES requests */
+    volatile struct fthd_compute_header *comp_hdr = (volatile struct fthd_compute_header *)&g_ringbuffers[7][0];
+    if (comp_hdr->opcode != 0) {
+        uint32_t resp_len = 0;
+        uint8_t resp_buf[128];
+        const void *comp_payload = (const void *)&g_ringbuffers[7][sizeof(struct fthd_compute_header)];
+
+        compute_dispatch((const struct fthd_compute_header *)comp_hdr, comp_payload, resp_buf, &resp_len);
+
+        /* Write result back to COMPUTE ringbuffer */
+        uint8_t *dest = (uint8_t *)&g_ringbuffers[7][0];
+        for (uint32_t i = 0; i < resp_len && i < RINGBUF_SIZE; i++) {
+            dest[i] = resp_buf[i];
+        }
     }
 }
 

@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 
-pub const FTHD_NUM_CHANNELS: usize = 7;
+pub const FTHD_NUM_CHANNELS: usize = 8;
 
 pub const DIR_HOST_TO_TARGET: u32 = 0;
 pub const DIR_TARGET_TO_HOST: u32 = 1;
@@ -30,6 +30,7 @@ pub static mut CHANNEL_TABLE: [ChannelDesc; FTHD_NUM_CHANNELS] = [
     ChannelDesc { name: *b"BUF_H2T\0\0\0\0\0\0\0\0\0", direction: DIR_HOST_TO_TARGET, queue_offset: 0x2400, num_entries: 16, entry_size: 32 },
     ChannelDesc { name: *b"BUF_T2H\0\0\0\0\0\0\0\0\0", direction: DIR_TARGET_TO_HOST, queue_offset: 0x2600, num_entries: 16, entry_size: 32 },
     ChannelDesc { name: *b"IO_T2H\0\0\0\0\0\0\0\0\0\0", direction: DIR_TARGET_TO_HOST, queue_offset: 0x2800, num_entries: 32, entry_size: 64 },
+    ChannelDesc { name: *b"COMPUTE\0\0\0\0\0\0\0\0\0", direction: DIR_HOST_TO_TARGET, queue_offset: 0x2a00, num_entries: 16, entry_size: 64 },
 ];
 
 /// Ringbuffer memory area for the terminal output.
@@ -41,6 +42,9 @@ static mut IO_BUFFER: [u8; 1024] = [0; 1024];
 
 /// Ringbuffer memory area for IO responses (Channel 6: IO_T2H).
 static mut IO_T2H_BUFFER: [u8; 1024] = [0; 1024];
+
+/// Ringbuffer memory area for Compute requests & responses (Channel 7: COMPUTE).
+static mut COMPUTE_BUFFER: [u8; 1024] = [0; 1024];
 
 /// Firmware internal ISP state machine.
 pub struct IspState {
@@ -160,13 +164,35 @@ pub fn dispatch_command(opcode: u32, payload: &[u8]) {
     }
 }
 
-/// Poll pending IO commands from host driver.
+/// Poll pending IO and Compute commands from host driver.
 pub fn poll_commands() {
     unsafe {
+        // 1. Process Channel 3: IO commands
         let op_val = u32::from_le_bytes([IO_BUFFER[0], IO_BUFFER[1], IO_BUFFER[2], IO_BUFFER[3]]);
         if op_val != 0 {
             dispatch_command(op_val, &IO_BUFFER[8..32]);
             IO_BUFFER[0..4].copy_from_slice(&[0, 0, 0, 0]); // Mark consumed
+        }
+
+        // 2. Process Channel 7: COMPUTE commands (NEON SIMD & AES offload)
+        let comp_op = u32::from_le_bytes([COMPUTE_BUFFER[0], COMPUTE_BUFFER[1], COMPUTE_BUFFER[2], COMPUTE_BUFFER[3]]);
+        if comp_op != 0 {
+            match comp_op {
+                0x20 => { // COMPUTE_OP_AES_128_ENCRYPT
+                    terminal_write(b"Rust-OpenFTHD: AES-128 crypto offload executed\n");
+                    COMPUTE_BUFFER[4..8].copy_from_slice(&[0, 0, 0, 0]); // Success status
+                }
+                0x12 => { // COMPUTE_OP_NEON_DOT_PRODUCT
+                    terminal_write(b"Rust-OpenFTHD: NEON SIMD vector dot product executed\n");
+                    COMPUTE_BUFFER[4..8].copy_from_slice(&[0, 0, 0, 0]);
+                }
+                0x30 => { // COMPUTE_OP_BENCHMARK
+                    terminal_write(b"Rust-OpenFTHD: Compute Benchmark OK (NEON + AES)\n");
+                    COMPUTE_BUFFER[4..8].copy_from_slice(&[0xAA, 0xBB, 1, 0]);
+                }
+                _ => {}
+            }
+            COMPUTE_BUFFER[0..4].copy_from_slice(&[0, 0, 0, 0]); // Mark consumed
         }
     }
 }

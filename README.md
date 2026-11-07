@@ -30,9 +30,11 @@ The Broadcom BCM1570 PCIe coprocessor embeds an internal **ARM Cortex-A7 / ARMv7
                     │  │          OpenFTHD Firmware (ARMv7)               │  │
                     │  │  • Vector Table & Reset Handshake (boot.S / C)   │  │
                     │  │  • Embedded Rust Implementation (no_std)         │  │
-                    │  │  • IPC Mailbox Protocol & Ringbuffers (ipc.c)    │  │
+                    │  │  • Active CISP Command Dispatcher (ipc.c)        │  │
                     │  │  • OmniVision OV5650 Sensor Control (sensor.c)   │  │
-                    │  │  • Future SIMD / Compute Offload Channel         │  │
+                    │  │  • ARM NEON SIMD Vector Acceleration (0x10-0x12) │  │
+                    │  │  • NIST FIPS-197 AES-128 Crypto Engine (0x20-23) │  │
+                    │  │  • Channel 7 COMPUTE Offload Engine (compute.c)  │  │
                     │  └──────────────────────────────────────────────────┘  │
                     └───────────────────────────┬────────────────────────────┘
                                                 │ MIPI CSI-2 & I2C Bus
@@ -92,7 +94,26 @@ Unlike Apple's closed firmware which artificially locked video capture to 720p@3
 
 ---
 
-## 5. Developer APIs & CLI Tools (Python, C, Rust)
+## 5. ARM Cortex-A7 NEON SIMD & AES-128 Compute Engine (`CHAN_NAME_COMPUTE`)
+
+In addition to image signal processing, the BCM1570 embeds an ARM Cortex-A7 core with a **128-bit NEON SIMD vector processing unit (VFPv4)** and internal SRAM. OpenFTHD introduces **Channel 7 (`COMPUTE`)**, a high-performance IPC offload channel allowing the host system to offload compute-intensive vision algorithms and cryptographic operations directly onto the camera coprocessor without touching host CPU cycles.
+
+### Supported Compute Opcodes
+
+| Opcode | Identifier | Description | Implementation |
+|---|---|---|---|
+| `0x10` | `COMPUTE_OP_NEON_YUYV_TO_RGB` | Vectorized 8-pixel batch YUYV-4:2:2 to RGB-8:8:8 conversion | ARM NEON SIMD (`neon_ops.c`) |
+| `0x11` | `COMPUTE_OP_NEON_CONVOLUTION_3X3` | 3x3 Sobel spatial gradient filter for edge detection | ARM NEON SIMD (`neon_ops.c`) |
+| `0x12` | `COMPUTE_OP_NEON_DOT_PRODUCT` | 16-element int16 vector multiply-accumulate (tensor dot product) | ARM NEON SIMD (`neon_ops.c`) |
+| `0x20` | `COMPUTE_OP_AES_128_ENCRYPT` | Clean-room NIST FIPS-197 AES-128 single/multi-block encryption | Clean-Room Crypto (`aes.c`) |
+| `0x21` | `COMPUTE_OP_AES_128_DECRYPT` | Clean-room NIST FIPS-197 AES-128 block decryption | Clean-Room Crypto (`aes.c`) |
+| `0x22` | `COMPUTE_OP_AES_128_CBC_ENCRYPT` | AES-128 Cipher Block Chaining (CBC) video frame encryption | Clean-Room Crypto (`aes.c`) |
+| `0x23` | `COMPUTE_OP_AES_128_CBC_DECRYPT` | AES-128 CBC video frame decryption | Clean-Room Crypto (`aes.c`) |
+| `0x30` | `COMPUTE_OP_BENCHMARK` | Firmware cycle diagnostic and compute engine throughput test | Diagnostic (`compute.c`) |
+
+---
+
+## 6. Developer APIs & CLI Tools (Python, C, Rust)
 
 OpenFTHD provides complete, production-ready developer tools to interact with camera hardware features:
 
@@ -118,6 +139,8 @@ CLI Command:
 ```bash
 python3 tools/fthd_camera_control.py --info
 python3 tools/fthd_camera_control.py --zoom 1.5 --metering spot --hdr on
+python3 tools/fthd_camera_control.py --compute-aes "EncryptThisFrame"
+python3 tools/fthd_camera_control.py --compute-neon
 ```
 
 ### B. C Library & CLI (`tools/c/`)
@@ -132,6 +155,10 @@ fthd_set_hdr(cam, true);
 fthd_set_led(cam, FTHD_LED_FORCE_OFF);
 fthd_print_status(cam);
 fthd_close(cam);
+
+/* Channel 7 Compute Engine Packet Helpers */
+uint8_t pkt[256];
+fthd_compute_build_aes_packet(pkt, sizeof(pkt), key, data, len);
 ```
 
 Build and run:
@@ -139,6 +166,8 @@ Build and run:
 make -C tools/c all
 ./tools/c/fthd-tool --status
 ./tools/c/fthd-tool --zoom 2.0 --metering spot --hdr 1
+./tools/c/fthd-tool --compute-aes "OpenFTHDCrypto"
+./tools/c/fthd-tool --compute-neon
 ```
 
 ### C. Rust Crate & CLI (`tools/rust/`)
@@ -152,6 +181,9 @@ cam.set_exposure_metering(ExposureMetering::Spot)?;
 cam.set_hdr(true)?;
 cam.set_led(LedMode::Auto)?;
 cam.print_status();
+
+// Channel 7 Compute Packets
+let pkt = fthd_ctl::compute::build_aes_packet(&key, data);
 ```
 
 Build and run:
@@ -159,11 +191,13 @@ Build and run:
 cd tools/rust && cargo build --release
 ./target/release/fthd-ctl --status
 ./target/release/fthd-ctl --zoom 1.5 --hdr on --metering matrix
+./target/release/fthd-ctl --compute-aes "RustOffload"
+./target/release/fthd-ctl --compute-neon
 ```
 
 ---
 
-## 6. Building and Testing
+## 7. Building and Testing
 
 ### Prerequisites
 ```bash
@@ -177,11 +211,11 @@ rustup target add armv7a-none-eabi
 make all
 ```
 
-### Automated QEMU Unit Tests
+### Automated QEMU & Subsystem Unit Tests
 ```bash
 make test
 ```
-**Test Output Verification**:
+**Test Output Verification (4 Test Suites Passing 100%)**:
 ```text
 ==========================================
 1. Running C Reference Firmware QEMU Test:
@@ -195,6 +229,7 @@ make test
   [+] Channel detected: BUF_H2T
   [+] Channel detected: BUF_T2H
   [+] Channel detected: IO_T2H
+  [+] Channel detected: COMPUTE
 [SUCCESS] All IPC channels initialized successfully in QEMU memory!
 
 ==========================================
@@ -202,13 +237,42 @@ make test
 ==========================================
 [*] Testing OpenFTHD Rust binary: rust/target/firmware_rust.bin
 [*] Launching QEMU (Cortex-A7, virt machine)...
-  [+] Detected Mailbox register write: offset 0x000c3000, value 0x700c4
+  [+] Detected Mailbox register write: offset 0x000c3000, value 0x801ac
 [SUCCESS] OpenFTHD (Rust) bare-metal firmware validated in QEMU!
+
+==========================================
+3. Running Hardware ISP Command Dispatcher Test:
+==========================================
+[*] Running OpenFTHD Hardware Command Dispatcher Test Suite...
+  [+] CISP_CMD_CH_START (0x100) -> Streaming ACTIVE: OK
+  [+] CISP_CMD_CH_CROP_SET (0x801) -> ePTZ Crop 960x540@[160,90]: OK
+  [+] CISP_CMD_CH_OUTPUT_CONFIG_SET (0xb01) -> 1920x1080 YUYV: OK
+  [+] Color Tuning (Brightness=200, Contrast=150, Saturation=175, Hue=120): OK
+  [+] Advanced Features (DRC=ON, AE Metering=Spot, LED Mode=Always On): OK
+  [+] CISP_CMD_CH_STOP (0x101) -> Streaming STANDBY: OK
+[SUCCESS] 100% of ISP Hardware Commands and State Transitions Verified!
+
+==========================================
+4. Running NEON SIMD & AES Cryptographic Test:
+==========================================
+[*] 1. Validating Clean-Room AES-128 against NIST FIPS-197...
+  [+] NIST FIPS-197 S-Box and Rcon Tables Verified
+  [+] AES-128 Key Expansion (10 Rounds, 44 Words) Verified
+  [+] Clean-Room AES-128 Encryption/Decryption: OK
+[*] 2. Validating ARM Cortex-A7 128-bit NEON SIMD YUYV to RGB Conversion...
+  [+] 128-bit NEON SIMD Color Pipeline: OK
+[*] 3. Validating NEON SIMD 3x3 Sobel Convolution (Edge Detection)...
+  [+] NEON SIMD Vision Kernel: OK
+[*] 4. Validating NEON SIMD Vector Dot Product (Tensor Math)...
+  [+] NEON 128-bit vmlal.s16 vector multiply-accumulate: OK
+[*] 5. Validating IPC COMPUTE Channel Protocol Dispatch...
+  [+] 8/8 Compute Opcodes (0x10, 0x11, 0x12, 0x20, 0x21, 0x22, 0x23, 0x30): OK
+[SUCCESS] 100% of NEON SIMD, AES Cryptographic & Compute Subsystems Verified!
 ```
 
 ---
 
-## 7. Replacing Apple's Firmware (`firmware.bin`)
+## 8. Replacing Apple's Firmware (`firmware.bin`)
 
 To test the clean-room binary as a drop-in replacement on a Linux system:
 ```bash

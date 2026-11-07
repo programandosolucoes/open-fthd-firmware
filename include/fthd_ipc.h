@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-#define MAX_CHANNELS            7
+#define MAX_CHANNELS            8
 #define CHANNEL_NAME_MAX_LEN    32
 #define RINGBUF_ENTRY_SIZE      16
 
@@ -27,7 +27,7 @@
 #define CHAN_NAME_BUF_T2H       "BUF_T2H"
 #define CHAN_NAME_IO_T2H        "IO_T2H"
 
-/* Extended Compute / Hardware Offload Channel (for NEON SIMD & DSP acceleration) */
+/* Extended Compute / Hardware Offload Channel (for NEON SIMD & AES Crypto acceleration) */
 #define CHAN_NAME_COMPUTE       "COMPUTE"
 
 /* Channel Types */

@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,6 +129,45 @@ int fthd_get_power_profile(fthd_power_profile_t *profile);
  * Print a human-readable diagnostic status of all hardware features.
  */
 void fthd_print_status(fthd_device_t *dev);
+
+/* ============================================================================
+ * Channel 7 Compute Engine Definitions (ARM NEON SIMD & AES Crypto)
+ * ============================================================================
+ */
+enum fthd_tool_compute_opcodes {
+    FTHD_TOOL_COMPUTE_OP_NEON_YUYV_TO_RGB     = 0x10,
+    FTHD_TOOL_COMPUTE_OP_NEON_CONVOLUTION_3X3 = 0x11,
+    FTHD_TOOL_COMPUTE_OP_NEON_DOT_PRODUCT     = 0x12,
+    FTHD_TOOL_COMPUTE_OP_AES_128_ENCRYPT      = 0x20,
+    FTHD_TOOL_COMPUTE_OP_AES_128_DECRYPT      = 0x21,
+    FTHD_TOOL_COMPUTE_OP_AES_128_CBC_ENCRYPT  = 0x22,
+    FTHD_TOOL_COMPUTE_OP_BENCHMARK            = 0x30,
+};
+
+struct __attribute__((packed)) fthd_tool_compute_header {
+    uint32_t opcode;
+    uint32_t flags;
+    uint32_t data_len;
+    uint32_t sequence;
+};
+
+struct __attribute__((packed)) fthd_tool_compute_aes_payload {
+    uint8_t key[16];
+    uint8_t iv[16];
+    uint32_t num_blocks;
+    uint8_t data[64];
+};
+
+struct __attribute__((packed)) fthd_tool_compute_neon_dot_payload {
+    uint32_t length;
+    int16_t vec_a[16];
+    int16_t vec_b[16];
+};
+
+int32_t fthd_compute_neon_dot_sim(const int16_t *a, const int16_t *b, uint32_t length);
+int fthd_compute_build_aes_packet(uint8_t *buf, size_t max_len, const uint8_t *key, const uint8_t *in, size_t in_len);
+int fthd_compute_build_neon_packet(uint8_t *buf, size_t max_len, const int16_t *a, const int16_t *b, uint32_t length);
+
 
 #ifdef __cplusplus
 }

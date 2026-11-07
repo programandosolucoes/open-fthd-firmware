@@ -9,10 +9,10 @@ OBJCOPY = arm-none-eabi-objcopy
 OBJDUMP = arm-none-eabi-objdump
 SIZE    = arm-none-eabi-size
 
-CFLAGS  = -mcpu=cortex-a7 -marm -Wall -Wextra -O2 -nostdlib -nostartfiles -ffreestanding -fno-builtin -Iinclude
+CFLAGS  = -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=softfp -marm -Wall -Wextra -O2 -nostdlib -nostartfiles -ffreestanding -fno-builtin -Iinclude
 LDFLAGS = -T linker.ld -nostdlib
 
-SRCS    = src/boot.S src/main.c src/ipc.c src/sensor.c
+SRCS    = src/boot.S src/main.c src/ipc.c src/sensor.c src/aes.c src/neon_ops.c src/compute.c
 OBJS    = $(SRCS:.c=.o)
 OBJS   := $(OBJS:.S=.o)
 
@@ -73,6 +73,11 @@ test: $(TARGET_BIN) rust
 	@echo "3. Running Hardware ISP Command Dispatcher Test:"
 	@echo "=========================================="
 	python3 tests/test_commands.py
+	@echo ""
+	@echo "=========================================="
+	@echo "4. Running NEON SIMD & AES Cryptographic Test:"
+	@echo "=========================================="
+	python3 tests/test_compute_neon_aes.py
 
 clean:
 	rm -rf build src/*.o

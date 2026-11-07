@@ -316,3 +316,70 @@ impl FthdCamera {
 fn libc_nonblock() -> i32 {
     0x800 // O_NONBLOCK on Linux x86_64
 }
+
+/// Channel 7 Compute Engine Definitions (ARM NEON SIMD & AES Cryptography)
+pub mod compute {
+    pub const OP_NEON_YUYV_TO_RGB: u32     = 0x10;
+    pub const OP_NEON_CONVOLUTION_3X3: u32 = 0x11;
+    pub const OP_NEON_DOT_PRODUCT: u32     = 0x12;
+    pub const OP_AES_128_ENCRYPT: u32      = 0x20;
+    pub const OP_AES_128_DECRYPT: u32      = 0x21;
+    pub const OP_AES_128_CBC_ENCRYPT: u32  = 0x22;
+    pub const OP_BENCHMARK: u32            = 0x30;
+
+    #[repr(C, packed)]
+    #[derive(Debug, Clone, Copy)]
+    pub struct ComputeHeader {
+        pub opcode: u32,
+        pub flags: u32,
+        pub data_len: u32,
+        pub sequence: u32,
+    }
+
+    pub fn build_aes_packet(key: &[u8; 16], data: &[u8]) -> Vec<u8> {
+        let mut packet = Vec::with_capacity(16 + 16 + 16 + 4 + 64);
+        let blocks = ((data.len() + 15) / 16).min(4) as u32;
+        let payload_len = 16 + 16 + 4 + 64; // key + iv + num_blocks + data
+
+        // Header
+        packet.extend_from_slice(&OP_AES_128_ENCRYPT.to_le_bytes());
+        packet.extend_from_slice(&0u32.to_le_bytes()); // flags
+        packet.extend_from_slice(&(payload_len as u32).to_le_bytes());
+        packet.extend_from_slice(&1u32.to_le_bytes()); // sequence
+
+        // Payload
+        packet.extend_from_slice(key);
+        packet.extend_from_slice(&[0u8; 16]); // iv
+        packet.extend_from_slice(&blocks.to_le_bytes());
+        let mut block_data = [0u8; 64];
+        let copy_len = data.len().min(64);
+        block_data[..copy_len].copy_from_slice(&data[..copy_len]);
+        packet.extend_from_slice(&block_data);
+
+        packet
+    }
+
+    pub fn build_neon_dot_packet(a: &[i16; 16], b: &[i16; 16]) -> Vec<u8> {
+        let mut packet = Vec::with_capacity(16 + 4 + 32 + 32);
+        let payload_len = 4 + 32 + 32;
+
+        packet.extend_from_slice(&OP_NEON_DOT_PRODUCT.to_le_bytes());
+        packet.extend_from_slice(&0u32.to_le_bytes());
+        packet.extend_from_slice(&(payload_len as u32).to_le_bytes());
+        packet.extend_from_slice(&1u32.to_le_bytes());
+
+        packet.extend_from_slice(&16u32.to_le_bytes());
+        for val in a {
+            packet.extend_from_slice(&val.to_le_bytes());
+        }
+        for val in b {
+            packet.extend_from_slice(&val.to_le_bytes());
+        }
+        packet
+    }
+
+    pub fn sim_neon_dot(a: &[i16], b: &[i16]) -> i32 {
+        a.iter().zip(b.iter()).map(|(&x, &y)| (x as i32) * (y as i32)).sum()
+    }
+}
+

@@ -24,6 +24,8 @@ static void print_usage(const char *progname)
     printf("  -l, --led <0|1|2>         Set LED: 0=Auto, 1=Always Off (Stealth), 2=Always On\n");
     printf("  -p, --power <0|1|2>       Set power profile: 0=High Perf, 1=Balanced, 2=Low Power\n");
     printf("  -r, --reset               Reset crop window to full 1280x720 frame\n");
+    printf("  --compute-aes <text>      Build and test Channel 7 AES-128 Compute packet\n");
+    printf("  --compute-neon            Build and test Channel 7 NEON SIMD Dot Product packet\n");
     printf("  -h, --help                Show this didactic help guide\n\n");
 }
 
@@ -38,22 +40,32 @@ int main(int argc, char *argv[])
     int led_val = -1;
     int power_val = -1;
     bool reset_val = false;
+    const char *aes_input = NULL;
+    bool neon_test = false;
 
     static struct option long_options[] = {
-        {"device",   required_argument, 0, 'd'},
-        {"status",   no_argument,       0, 's'},
-        {"zoom",     required_argument, 0, 'z'},
-        {"metering", required_argument, 0, 'm'},
-        {"hdr",      required_argument, 0, 'w'},
-        {"led",      required_argument, 0, 'l'},
-        {"power",    required_argument, 0, 'p'},
-        {"reset",    no_argument,       0, 'r'},
-        {"help",     no_argument,       0, 'h'},
+        {"device",      required_argument, 0, 'd'},
+        {"status",      no_argument,       0, 's'},
+        {"zoom",        required_argument, 0, 'z'},
+        {"metering",    required_argument, 0, 'm'},
+        {"hdr",         required_argument, 0, 'w'},
+        {"led",         required_argument, 0, 'l'},
+        {"power",       required_argument, 0, 'p'},
+        {"reset",       no_argument,       0, 'r'},
+        {"compute-aes",  required_argument, 0, 1001},
+        {"compute-neon", no_argument,       0, 1002},
+        {"help",        no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
 
     while ((opt = getopt_long(argc, argv, "d:sz:m:w:l:p:rh", long_options, NULL)) != -1) {
         switch (opt) {
+        case 1001:
+            aes_input = optarg;
+            break;
+        case 1002:
+            neon_test = true;
+            break;
         case 'd':
             device_path = optarg;
             break;
@@ -97,6 +109,43 @@ int main(int argc, char *argv[])
             perror("[!] Failed to set power profile (root required)");
         }
     }
+
+    /* Compute Channel Demonstrations (AES & NEON) */
+    if (aes_input) {
+        uint8_t packet[256];
+        const uint8_t key[16] = {
+            '0', '1', '2', '3', '4', '5', '6', '7',
+            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+        };
+        int len = fthd_compute_build_aes_packet(packet, sizeof(packet), key, (const uint8_t *)aes_input, strlen(aes_input));
+        if (len > 0) {
+            printf("[+] Channel 7 Compute AES-128 Packet Built (%d bytes):\n", len);
+            printf("    Key:       %.16s\n", key);
+            printf("    Plaintext: %s\n", aes_input);
+            printf("    Opcode:    0x%02x (COMPUTE_OP_AES_128_ENCRYPT)\n", packet[0]);
+        }
+    }
+
+    if (neon_test) {
+        int16_t a[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+        int16_t b[16] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
+        uint8_t packet[256];
+        int len = fthd_compute_build_neon_packet(packet, sizeof(packet), a, b, 16);
+        int32_t dot = fthd_compute_neon_dot_sim(a, b, 16);
+        if (len > 0) {
+            printf("[+] Channel 7 Compute NEON Dot Product Packet Built (%d bytes):\n", len);
+            printf("    Vectors:   16 elements (int16_t)\n");
+            printf("    Expected:  %d\n", dot);
+            printf("    Opcode:    0x%02x (COMPUTE_OP_NEON_DOT_PRODUCT)\n", packet[0]);
+        }
+    }
+
+    if (aes_input || neon_test) {
+        if (!show_status && zoom_val < 1.0f && metering_val < 0 && hdr_val < 0 && led_val < 0 && !reset_val) {
+            return 0;
+        }
+    }
+
 
     fthd_device_t *dev = fthd_open(device_path);
     if (!dev) {
