@@ -106,6 +106,12 @@ Em resposta ao feedback técnico da comunidade e à pergunta de Patrik Jakobsson
 * **Link Oficial**: [https://developer.arm.com/documentation/den0018/a/](https://developer.arm.com/documentation/den0018/a/)
 * **Localização no Repositório**: [`references/05-simd-arm-neon/neon_kernels_reference.c`](file:///home/carlos/Documentos/Arquivo_Central/Projetos/open-fthd-firmware/references/05-simd-arm-neon/neon_kernels_reference.c)
 
+### F. Algoritmos de Referência Open-Source para Pipeline ISP 3A (Linux Media / libcamera)
+* **Documento Oficial**: Arquitetura de Processamento de Imagem V4L2 3A & `libcamera` IPA.
+* **Links Oficiais**: [https://libcamera.org](https://libcamera.org) e [https://docs.kernel.org/userspace-api/media/v4l/](https://docs.kernel.org/userspace-api/media/v4l/)
+* **Localização no Repositório**: [`references/07-isp-3a-algorithms/isp_3a_reference.c`](file:///home/carlos/Documentos/Arquivo_Central/Projetos/open-fthd-firmware/references/07-isp-3a-algorithms/isp_3a_reference.c)
+* **Formulação Matemática**: Ponderação fotométrica de auto-exposição (AEC/AGC), normalização Gray-World de AWB e estimativa CCT em Kelvin, operador de nitidez Tenengrad (gradiente Sobel ao quadrado) para CDAF, e curva de tom em S monotônica de 256 entradas para DRC/HDR.
+
 ---
 
 ## 4. Arquitetura da Solução Desenvolvida

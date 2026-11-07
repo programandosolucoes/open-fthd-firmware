@@ -50,6 +50,16 @@ This project follows strict clean-room engineering principles:
 - **Evidence Identifier**: `ev_399af037b91ec90834825cc893d7857c725cb4a5f4d8b60c8c035049577d93a7`
 - **Local Report**: [`references/06-reverse-engineering/rea_ghidra_decompilation_report.md`](references/06-reverse-engineering/rea_ghidra_decompilation_report.md)
 
+### G. Linux V4L2 & libcamera Open-Source 3A Pipeline Algorithms
+- **Source**: Linux Media subsystem (`drivers/media/v4l2-core/`) & `libcamera` IPA 3A architecture ([https://libcamera.org](https://libcamera.org))
+- **Local Reference Mirror**: [`references/07-isp-3a-algorithms/isp_3a_reference.c`](references/07-isp-3a-algorithms/isp_3a_reference.c)
+- **Mathematical Formulations**:
+  - Auto-Exposure Control (AEC/AGC) & Photometry Weighting (Average, Center-Weighted, Spot, Matrix).
+  - Auto-White Balance (AWB) Gray-World statistical normalization and CCT Kelvin estimation.
+  - Contrast Detection Auto-Focus (CDAF) Tenengrad squared Sobel gradient sharpness operator.
+  - Dynamic Range Compression (DRC) monotonic non-linear S-curve tone-mapping LUT.
+  - 16.16 fixed-point bilinear scaler resampling.
+
 
 ---
 

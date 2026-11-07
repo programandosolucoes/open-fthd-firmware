@@ -23,9 +23,12 @@ references/
 ├── 05-simd-arm-neon/
 │   ├── neon_kernels_reference.c     <- ARM NEON SIMD vector color space & Sobel convolution
 │   └── README.md              <- ARMv7-A Architecture & DEN0018A documentation
-└── 06-reverse-engineering/
-    ├── rea_ghidra_decompilation_report.md <- Ghidra 12.1.4 analysis (Evidence ev_399af037...)
-    └── README.md              <- Hardware topology and 15 Apple C++ classes inventory
+├── 06-reverse-engineering/
+│   ├── rea_ghidra_decompilation_report.md <- Ghidra 12.1.4 analysis (Evidence ev_399af037...)
+│   └── README.md              <- Hardware topology and 15 Apple C++ classes inventory
+└── 07-isp-3a-algorithms/
+    ├── isp_3a_reference.c     <- Standard Linux V4L2 & libcamera 3A algorithms (AEC, AWB, CDAF, DRC)
+    └── README.md              <- Mathematical formulations and provenance
 ```
 
 ---
@@ -40,3 +43,4 @@ references/
 | **Crypto (AES-128)** | `references/04-crypto-aes128/nist_fips197_aes_reference.c` | [NIST FIPS-197](https://csrc.nist.gov/publications/detail/fips/197/final) | Public Domain |
 | **SIMD (NEON)** | `references/05-simd-arm-neon/neon_kernels_reference.c` | [ARM DEN0018A](https://developer.arm.com/documentation/den0018/a/) | Public Standard |
 | **Binary Topology** | `references/06-reverse-engineering/rea_ghidra_decompilation_report.md` | `morluto/rea` + Ghidra 12.1.4 | Research Report |
+| **ISP 3A Algorithms** | `references/07-isp-3a-algorithms/isp_3a_reference.c` | Linux V4L2 3A & `libcamera` IPA models | GPL-2.0+ |

@@ -107,6 +107,12 @@ In response to upstream community inquiries regarding the availability of public
 * **URL**: [https://developer.arm.com/documentation/den0018/a/](https://developer.arm.com/documentation/den0018/a/)
 * **Local Reference Mirror**: [`references/05-simd-arm-neon/neon_kernels_reference.c`](../references/05-simd-arm-neon/neon_kernels_reference.c)
 
+### F. Linux V4L2 & libcamera Open-Source 3A Reference Algorithms
+* **Specification**: Linux Media Subsystem & `libcamera` IPA 3A Pipeline Architecture
+* **URL**: [https://libcamera.org](https://libcamera.org) & [https://docs.kernel.org/userspace-api/media/v4l/](https://docs.kernel.org/userspace-api/media/v4l/)
+* **Local Reference Mirror**: [`references/07-isp-3a-algorithms/isp_3a_reference.c`](../references/07-isp-3a-algorithms/isp_3a_reference.c)
+* **Mathematical Baseline**: AEC/AGC photometry weighting (Matrix, Spot, Center-Weighted), AWB Gray-World & Kelvin CCT estimation, CDAF Tenengrad gradient sharpness metric, and DRC 256-entry monotonic S-curve tone mapping.
+
 ---
 
 ## 4. Implemented Clean-Room Firmware Architecture
@@ -177,3 +183,4 @@ All firmware builds pass 4 automated unit test suites (`make test`):
 | **Cryptography (AES-128)** | `references/04-crypto-aes128/nist_fips197_aes_reference.c` | [NIST FIPS-197](https://csrc.nist.gov/publications/detail/fips/197/final) | Public Domain |
 | **SIMD (NEON)** | `references/05-simd-arm-neon/neon_kernels_reference.c` | [ARM DEN0018A](https://developer.arm.com/documentation/den0018/a/) | Public Standard |
 | **Silicon Topology** | `references/06-reverse-engineering/rea_ghidra_decompilation_report.md` | `morluto/rea` + Ghidra 12.1.4 | Research Report |
+| **ISP 3A Algorithms** | `references/07-isp-3a-algorithms/isp_3a_reference.c` | Linux V4L2 3A & `libcamera` IPA models | GPL-2.0+ |
