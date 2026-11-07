@@ -17,7 +17,8 @@
 void ipc_terminal_write(const char *msg);
 
 /* Memory regions reserved in internal SRAM for IPC buffers */
-#define RINGBUF_SIZE            1024
+#define RINGBUF_ENTRIES         64
+#define RINGBUF_SIZE            (RINGBUF_ENTRIES * RINGBUF_ENTRY_SIZE)
 
 static struct fthd_channel_info g_channels[MAX_CHANNELS] __attribute__((aligned(256)));
 static uint8_t g_ringbuffers[MAX_CHANNELS][RINGBUF_SIZE] __attribute__((aligned(256)));
@@ -34,59 +35,68 @@ static void fthd_strncpy(char *dst, const char *src, int n)
 
 void ipc_init(void)
 {
-    /* 1. Clear channel structures */
-    for (int i = 0; i < MAX_CHANNELS; i++) {
-        uint8_t *p = (uint8_t *)&g_channels[i];
-        for (int j = 0; j < (int)sizeof(struct fthd_channel_info); j++) {
-            p[j] = 0;
-        }
-    }
-
-    /* 2. Configure 8 standard expected channels */
+    /* 1. Copy standard channel names expected by Linux bcwc_pcie host driver */
     fthd_strncpy(g_channels[0].name, CHAN_NAME_TERMINAL, CHANNEL_NAME_MAX_LEN);
-    g_channels[0].type = CHAN_TYPE_STREAM;
-    g_channels[0].size = RINGBUF_SIZE;
+    fthd_strncpy(g_channels[1].name, CHAN_NAME_DEBUG, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[2].name, CHAN_NAME_SHAREDMALLOC, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[3].name, CHAN_NAME_IO, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[4].name, CHAN_NAME_BUF_H2T, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[5].name, CHAN_NAME_BUF_T2H, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[6].name, CHAN_NAME_IO_T2H, CHANNEL_NAME_MAX_LEN);
+    fthd_strncpy(g_channels[7].name, CHAN_NAME_COMPUTE, CHANNEL_NAME_MAX_LEN);
+
+    /* 2. Configure channel parameters matching Linux driver fthd_ringbuf types */
+    g_channels[0].type = 1; /* CHAN_TYPE_T2H */
+    g_channels[0].source = 0;
+    g_channels[0].size = RINGBUF_ENTRIES;
     g_channels[0].offset = (uint32_t)&g_ringbuffers[0];
 
-    fthd_strncpy(g_channels[1].name, CHAN_NAME_DEBUG, CHANNEL_NAME_MAX_LEN);
-    g_channels[1].type = CHAN_TYPE_STREAM;
-    g_channels[1].size = RINGBUF_SIZE;
+    g_channels[1].type = 1; /* CHAN_TYPE_T2H */
+    g_channels[1].source = 1;
+    g_channels[1].size = RINGBUF_ENTRIES;
     g_channels[1].offset = (uint32_t)&g_ringbuffers[1];
 
-    fthd_strncpy(g_channels[2].name, CHAN_NAME_SHAREDMALLOC, CHANNEL_NAME_MAX_LEN);
-    g_channels[2].type = CHAN_TYPE_RINGBUF;
-    g_channels[2].size = RINGBUF_SIZE;
+    g_channels[2].type = 2; /* CHAN_TYPE_UNIDIR */
+    g_channels[2].source = 2;
+    g_channels[2].size = RINGBUF_ENTRIES;
     g_channels[2].offset = (uint32_t)&g_ringbuffers[2];
 
-    fthd_strncpy(g_channels[3].name, CHAN_NAME_IO, CHANNEL_NAME_MAX_LEN);
-    g_channels[3].type = CHAN_TYPE_RINGBUF;
-    g_channels[3].size = RINGBUF_SIZE;
+    g_channels[3].type = 0; /* CHAN_TYPE_H2T */
+    g_channels[3].source = 3;
+    g_channels[3].size = RINGBUF_ENTRIES;
     g_channels[3].offset = (uint32_t)&g_ringbuffers[3];
 
-    fthd_strncpy(g_channels[4].name, CHAN_NAME_BUF_H2T, CHANNEL_NAME_MAX_LEN);
-    g_channels[4].type = CHAN_TYPE_RINGBUF;
-    g_channels[4].size = RINGBUF_SIZE;
+    g_channels[4].type = 0; /* CHAN_TYPE_H2T */
+    g_channels[4].source = 0;
+    g_channels[4].size = RINGBUF_ENTRIES;
     g_channels[4].offset = (uint32_t)&g_ringbuffers[4];
 
-    fthd_strncpy(g_channels[5].name, CHAN_NAME_BUF_T2H, CHANNEL_NAME_MAX_LEN);
-    g_channels[5].type = CHAN_TYPE_RINGBUF;
-    g_channels[5].size = RINGBUF_SIZE;
+    g_channels[5].type = 1; /* CHAN_TYPE_T2H */
+    g_channels[5].source = 1;
+    g_channels[5].size = RINGBUF_ENTRIES;
     g_channels[5].offset = (uint32_t)&g_ringbuffers[5];
 
-    fthd_strncpy(g_channels[6].name, CHAN_NAME_IO_T2H, CHANNEL_NAME_MAX_LEN);
-    g_channels[6].type = CHAN_TYPE_RINGBUF;
-    g_channels[6].size = RINGBUF_SIZE;
+    g_channels[6].type = 1; /* CHAN_TYPE_T2H */
+    g_channels[6].source = 2;
+    g_channels[6].size = RINGBUF_ENTRIES;
     g_channels[6].offset = (uint32_t)&g_ringbuffers[6];
 
-    fthd_strncpy(g_channels[7].name, CHAN_NAME_COMPUTE, CHANNEL_NAME_MAX_LEN);
-    g_channels[7].type = CHAN_TYPE_RINGBUF;
-    g_channels[7].size = RINGBUF_SIZE;
+    g_channels[7].type = 0; /* CHAN_TYPE_H2T */
+    g_channels[7].source = 3;
+    g_channels[7].size = RINGBUF_ENTRIES;
     g_channels[7].offset = (uint32_t)&g_ringbuffers[7];
+
+    /* 3. Mirror channel table to DRAM address 0x00800000 for PCIe host */
+    volatile uint8_t *dst = (volatile uint8_t *)0x00800000;
+    const uint8_t *src = (const uint8_t *)g_channels;
+    for (uint32_t k = 0; k < sizeof(g_channels); k++) {
+        dst[k] = src[k];
+    }
 }
 
 uint32_t ipc_get_channel_table_addr(void)
 {
-    return (uint32_t)&g_channels[0];
+    return 0x00800000;
 }
 
 uint32_t ipc_get_num_channels(void)
@@ -120,6 +130,39 @@ int ipc_dispatch_command(uint32_t opcode, const void *payload, uint32_t len)
     uint32_t resp_data = 0;
 
     switch (opcode) {
+    /* 0. Host Driver Discovery & Calibration Handshake */
+    case CISP_CMD_START:
+    case CISP_CMD_RESET:
+    case CISP_CMD_PRINT_ENABLE:
+    case CISP_CMD_CONFIG_GET:
+    case CISP_CMD_CH_SET_FILE_LOAD:
+        break;
+
+    case CISP_CMD_CH_INFO_GET:
+        if (payload) {
+            uint8_t *p = (uint8_t *)payload;
+            /* sensorid0 at offset 0x10 = 0x5650 (OV5650) */
+            *(uint16_t *)(p + 0x10) = 0x5650;
+            /* sensorid1 at offset 0x18 = 0x1871 (MacBook Pro 11,2) */
+            *(uint16_t *)(p + 0x18) = 0x1871;
+            /* sensor_count at offset 0x58 = 1 */
+            *(uint32_t *)(p + 0x58) = 1;
+            /* camera module serial number string at offset 0x88 */
+            fthd_strncpy((char *)(p + 0x88), "CC2600FTHD0001", 18);
+        }
+        break;
+
+    case CISP_CMD_CH_CAMERA_CONFIG_GET:
+        if (payload) {
+            uint8_t *p = (uint8_t *)payload;
+            /* Native sensor resolution: 1280x720 */
+            p[8] = 1280 & 0xff;
+            p[9] = 1280 >> 8;
+            p[10] = 720 & 0xff;
+            p[11] = 720 >> 8;
+        }
+        break;
+
     /* 1. Camera Lifecycle */
     case CISP_CMD_CH_START:
         g_isp_state.streaming_active = 1;
@@ -364,13 +407,28 @@ int ipc_dispatch_command(uint32_t opcode, const void *payload, uint32_t len)
 
 void ipc_poll_commands(void)
 {
-    /* 1. Check IO ringbuffer (Channel 3) for pending command header */
+    /* 1. Check IO ringbuffer (Channel 3, H2T) for incoming host command descriptors */
+    volatile struct fthd_ringbuf_entry *entries = (volatile struct fthd_ringbuf_entry *)&g_ringbuffers[3][0];
+    for (int i = 0; i < RINGBUF_ENTRIES; i++) {
+        uint32_t flags = entries[i].address_flags;
+        if (flags != 0 && (flags & 1) == 0) {
+            uint32_t addr = flags & ~3;
+            volatile struct fthd_cmd_header *cmd = (volatile struct fthd_cmd_header *)addr;
+            void *payload = (void *)(addr + sizeof(struct fthd_cmd_header));
+            ipc_dispatch_command((uint32_t)cmd->opcode, payload, entries[i].request_size);
+            cmd->status = 0; /* Success */
+            entries[i].address_flags = flags | 1; /* Mark entry complete for host */
+            MMIO_WRITE32(BCM_REG_ISP_IRQ_STATUS, 0x10 << 3); /* Signal IO IRQ to host */
+        }
+    }
+
+    /* Direct memory command header fallback (for unit tests / mock harness) */
     volatile struct fthd_cmd_header *hdr = (volatile struct fthd_cmd_header *)&g_ringbuffers[3][0];
-    if (hdr->opcode != 0) {
+    if (hdr->opcode != 0 && (hdr->status == 0xdead || hdr->status == 0)) {
         uint32_t op = hdr->opcode;
         const void *payload = (const void *)&g_ringbuffers[3][sizeof(struct fthd_cmd_header)];
         ipc_dispatch_command(op, payload, 32);
-        hdr->opcode = 0; /* Clear after processing */
+        hdr->opcode = 0;
     }
 
     /* 2. Check COMPUTE ringbuffer (Channel 7) for NEON SIMD / AES requests */

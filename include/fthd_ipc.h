@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #define MAX_CHANNELS            8
-#define CHANNEL_NAME_MAX_LEN    32
+#define CHANNEL_NAME_MAX_LEN    64
 #define RINGBUF_ENTRY_SIZE      16
 
 /* Standard Channel Names expected by the Linux bcwc_pcie host driver */
@@ -39,11 +39,11 @@ enum fthd_channel_type {
 /* Channel Description Table Entry (256 bytes per entry in device RAM) */
 struct __attribute__((packed)) fthd_channel_info {
     char name[CHANNEL_NAME_MAX_LEN];
-    uint32_t type;
-    uint32_t source;
-    uint32_t size;
-    uint32_t offset;
-    uint8_t  reserved[208];
+    volatile uint32_t type;
+    volatile uint32_t source;
+    volatile uint32_t size;
+    volatile uint32_t offset;
+    uint8_t  reserved[176];
 };
 
 /* Ringbuffer Entry Structure */
@@ -54,10 +54,11 @@ struct __attribute__((packed)) fthd_ringbuf_entry {
     uint32_t sequence;          /* Sequence tag / status */
 };
 
-/* Command Header Structure */
+/* Command Header Structure (8 bytes matching Linux driver isp_cmd_hdr) */
 struct __attribute__((packed)) fthd_cmd_header {
-    uint32_t opcode;
-    uint32_t status;
+    uint32_t unknown0;
+    uint16_t opcode;
+    uint16_t status;
 };
 
 /* IPC Command Opcodes (CISP_CMD_*) */
@@ -91,6 +92,7 @@ enum fthd_isp_cmds {
     CISP_CMD_CH_INFO_GET                    = 0x10d,
     CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET     = 0x10e,
     CISP_CMD_CH_BUFFER_RECYCLE_START        = 0x10f,
+    CISP_CMD_CH_SET_FILE_LOAD               = 0x111,
     CISP_CMD_CH_CAPTURE_MODE_SET            = 0x112,
     CISP_CMD_CH_CAMERA_MIPI_FREQ_SELECT     = 0x11b,
 

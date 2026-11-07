@@ -40,7 +40,7 @@ SECTIONS
 
     /* Reserve 64KB for stack at top */
     . = ALIGN(8);
-    .stack : {
+    .stack (NOLOAD) : {
         . = . + 0x10000;
         _stack_top = .;
     } > RAM
