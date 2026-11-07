@@ -86,7 +86,7 @@ reset_handler:
     bic     r0, r0, #0x2300     /* Clear bits 13 (V), 9 (ROM), 8 (System) */
     bic     r0, r0, #(1 << 12)  /* Clear bit 12 (I-Cache) */
     bic     r0, r0, #5          /* Clear bits 2 (D-Cache), 0 (MMU) */
-    orr     r0, r0, #2          /* Alignment check (bit 1) */
+    bic     r0, r0, #2          /* Disable strict alignment check to prevent unaligned Data Aborts */
     mcr     p15, 0, r0, cr1, cr0, 0
     isb
 

@@ -418,7 +418,7 @@ void ipc_poll_commands(void)
             ipc_dispatch_command((uint32_t)cmd->opcode, payload, entries[i].request_size);
             cmd->status = 0; /* Success */
             entries[i].address_flags = flags | 1; /* Mark entry complete for host */
-            MMIO_WRITE32(BCM_REG_ISP_IRQ_STATUS, 0x10 << 3); /* Signal IO IRQ to host */
+            bcm1570_signal_host(0x10 << 3); /* Signal IO IRQ to host */
         }
     }
 
