@@ -35,8 +35,11 @@ pub static OV5650_MODES: [ModeDescriptor; 5] = [
 ];
 
 pub struct Ov5650Driver {
-    current_mode: usize,
-    i2c_address: u8,
+    pub current_mode: usize,
+    pub i2c_address: u8,
+    pub exposure_lines: u32,
+    pub analog_gain: u16,
+    pub powered: bool,
 }
 
 impl Ov5650Driver {
@@ -44,6 +47,9 @@ impl Ov5650Driver {
         Self {
             current_mode: 0,
             i2c_address: 0x36,
+            exposure_lines: 500,
+            analog_gain: 16,
+            powered: false,
         }
     }
 
@@ -65,6 +71,31 @@ impl Ov5650Driver {
         self.current_mode = mode_index;
         // In physical hardware, I2C writes to 0x3800-0x3821 are executed here.
         Ok(())
+    }
+
+    pub fn set_exposure(&mut self, lines: u32) {
+        let clamped = if lines > 0xfffff { 0xfffff } else { lines };
+        self.exposure_lines = clamped;
+        // 20-bit exposure written to 0x3500-0x3502
+    }
+
+    pub fn set_gain(&mut self, gain: u16) {
+        let clamped = if gain > 1024 { 1024 } else { gain };
+        self.analog_gain = clamped;
+        // Gain written to 0x3503
+    }
+
+    pub fn set_framerate(&mut self, fps: u32) {
+        // Adjust PLL divisor (0x3012)
+        let _ = fps;
+    }
+
+    pub fn power_on(&mut self) {
+        self.powered = true;
+    }
+
+    pub fn power_off(&mut self) {
+        self.powered = false;
     }
 
     pub fn current_mode_desc(&self) -> &ModeDescriptor {

@@ -12,7 +12,7 @@ SIZE    = arm-none-eabi-size
 CFLAGS  = -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=softfp -marm -Wall -Wextra -O2 -nostdlib -nostartfiles -ffreestanding -fno-builtin -Iinclude
 LDFLAGS = -T linker.ld -nostdlib
 
-SRCS    = src/boot.S src/main.c src/ipc.c src/sensor.c src/aes.c src/neon_ops.c src/compute.c
+SRCS    = src/boot.S src/main.c src/ipc.c src/sensor.c src/isp_pipeline.c src/aes.c src/neon_ops.c src/compute.c
 OBJS    = $(SRCS:.c=.o)
 OBJS   := $(OBJS:.S=.o)
 

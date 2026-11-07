@@ -3,10 +3,12 @@
 
 #![no_std]
 #![no_main]
+#![allow(static_mut_refs)]
 
 mod registers;
 mod ipc;
 mod sensor;
+mod isp;
 
 use core::panic::PanicInfo;
 use registers::{

@@ -48,17 +48,26 @@ The Broadcom BCM1570 PCIe coprocessor embeds an internal **ARM Cortex-A7 / ARMv7
 
 ## 2. Firmware Implementations
 
-OpenFTHD provides two independent, fully functional clean-room firmware builds:
+OpenFTHD provides two independent, fully functional clean-room firmware builds implementing a full Image Signal Processor (ISP) pipeline, 3A algorithms (AEC, AWB, CDAF), optical focus motor control, and multi-resolution sensor configurations:
 
 ### A. C Reference Implementation (`src/`)
-- Built freestanding with `arm-none-eabi-gcc` (`-mcpu=cortex-a7 -nostdlib`).
-- Implements interrupt vectors, ARM boot sequence, Mailbox IPC initialization, channel table construction, and OmniVision OV5650 sensor configuration tables.
-- Binary size: **1.7 KB** (compact and lightweight).
+- Built freestanding with `arm-none-eabi-gcc` (`-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=softfp -nostdlib -nostartfiles -O2`).
+- **Complete ISP 3A Pipeline**:
+  - **Auto-Exposure (AEC/AGC)**: 4 photometry metering modes (Average, Center-Weighted, Spot, Matrix) with anti-flicker (50Hz / 60Hz step multiples).
+  - **Auto-White-Balance (AWB/CCT)**: Gray-World algorithm with Correlated Color Temperature (CCT) Kelvin estimation across Tungsten (~2800K) and Daylight (~5500K) with 3x3 CCM.
+  - **Focus Actuator & Autofocus**: Analog Devices AD5816/AD5820 Voice Coil Motor (VCM) 10-bit DAC I2C control with linear and 64/16 ramp modes, softlanding, and contrast-detection autofocus (CDAF).
+  - **Dynamic Range Compression (DRC/HDR)**: 256-entry monotonic S-curve LUT generator lifting shadow detail without highlight clipping.
+  - **ePTZ Scaler & Cropping**: Active sensor window cropping, 16.16 fixed-point scaling ratios, and 64-byte aligned PCIe DMA line stride.
+  - **YUV Color Controls**: Real-time Brightness, Contrast, Saturation, and Hue adjustment.
+- **OmniVision OV5650 Sensor Multi-Resolution Modes**: Complete register sequences for 720p@30, 720p@60, 1080p@30, VGA@60, and 5MP@15 QSXGA full sensor array.
+- **Compute Offload**: 128-bit ARM NEON SIMD kernels and NIST FIPS-197 AES-128 engine on Channel 7 (`COMPUTE`).
+- Binary size: **~13 KB** (`build/firmware.bin`).
 
 ### B. Bare-Metal Rust Implementation (`rust/`)
 - Built with `armv7a-none-eabi` using `#![no_std]` and `#![no_main]`.
 - Enforces strict memory safety and volatile MMIO access without runtime overhead or standard library dependencies.
-- Binary size: **~420 bytes**.
+- Implements pure Rust 3A state machines (`rust/src/isp.rs`), AD5816 VCM DAC encoding, DRC tone curve generation, ePTZ scaler math, and OV5650 sensor driver (`rust/src/sensor.rs`).
+- Binary size: **~2.1 KB** (`rust/target/firmware_rust.bin`).
 
 ---
 

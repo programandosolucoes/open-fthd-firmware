@@ -49,6 +49,16 @@ reset_handler:
     mcr     p15, 0, r0, c12, c0, 0
     isb
 
+    /* Enable CP10 and CP11 (VFP and NEON) in CPACR */
+    mrc     p15, 0, r0, c1, c0, 2
+    orr     r0, r0, #(0xf << 20)
+    mcr     p15, 0, r0, c1, c0, 2
+    isb
+
+    /* Enable VFP / NEON in FPEXC (bit 30 = EN) */
+    mov     r0, #(1 << 30)
+    vmsr    fpexc, r0
+
     /* Set Stack Pointer to top of allocated stack */
     ldr     sp, =_stack_top
 

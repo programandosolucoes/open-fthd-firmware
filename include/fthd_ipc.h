@@ -43,7 +43,7 @@ struct __attribute__((packed)) fthd_channel_info {
     uint32_t source;
     uint32_t size;
     uint32_t offset;
-    uint8_t  reserved[212];
+    uint8_t  reserved[208];
 };
 
 /* Ringbuffer Entry Structure */
@@ -74,7 +74,7 @@ enum fthd_isp_cmds {
     CISP_CMD_TIMEPROFILE_SHOW               = 0x9,
     CISP_CMD_POWER_DOWN                     = 0xa,
 
-    /* Channel Management Commands (0x100+) */
+    /* Channel & Camera Management Commands (0x100+) */
     CISP_CMD_CH_START                       = 0x100,
     CISP_CMD_CH_STOP                        = 0x101,
     CISP_CMD_CH_RESET                       = 0x102,
@@ -99,11 +99,35 @@ enum fthd_isp_cmds {
     CISP_CMD_CH_AE_STOP                     = 0x201,
     CISP_CMD_CH_AE_FRAME_RATE_MAX_SET       = 0x208,
     CISP_CMD_CH_AE_FRAME_RATE_MIN_SET       = 0x20a,
+    CISP_CMD_CH_AE_INTEGRATION_TIME_SET     = 0x20f,
     CISP_CMD_CH_AE_WINDOW_PARAM_SET         = 0x21e, /* Photometry Metering */
+    CISP_CMD_CH_AE_TARGET_GET               = 0x223,
+    CISP_CMD_CH_AE_TARGET_SET               = 0x224,
+    CISP_CMD_CH_AE_MANUAL_MODE_SET          = 0x22b,
 
     /* Auto White Balance (0x300+) */
     CISP_CMD_CH_AWB_START                   = 0x300,
     CISP_CMD_CH_AWB_STOP                    = 0x301,
+    CISP_CMD_CH_AWB_WINDOW_PARAM_SET        = 0x303,
+    CISP_CMD_CH_AWB_CCT_GET                 = 0x304,
+    CISP_CMD_CH_AWB_CCT_MANUAL              = 0x305,
+    CISP_CMD_CH_AWB_1ST_GAIN_MANUAL         = 0x311,
+
+    /* Auto-Focus & VCM Actuator (0x400+, 0x700+) */
+    CISP_CMD_CH_AF_START                    = 0x400,
+    CISP_CMD_CH_AF_STOP                     = 0x401,
+    CISP_CMD_CH_AF_ONE_SHOT                 = 0x407,
+    CISP_CMD_CH_FOCUS_LIMITS_SET            = 0x700,
+    CISP_CMD_CH_FOCUS_LIMITS_GET            = 0x701,
+    CISP_CMD_CH_FOCUS_POSITION_SET          = 0x702,
+    CISP_CMD_CH_FOCUS_POSITION_GET          = 0x703,
+    CISP_CMD_CH_FOCUS_STEP_SIZE_SET         = 0x704,
+    CISP_CMD_CH_FOCUS_STEP_SIZE_GET         = 0x705,
+
+    /* Sensor Controls (0x500+) */
+    CISP_CMD_CH_SENSOR_FRAME_RATE_SET       = 0x500,
+    CISP_CMD_CH_SENSOR_POWER_ON             = 0x50b,
+    CISP_CMD_CH_SENSOR_POWER_OFF            = 0x50c,
 
     /* Status LED & Flash Controls (0x600+) */
     CISP_CMD_CH_LED_TORCH_OFF               = 0x602,
@@ -113,9 +137,14 @@ enum fthd_isp_cmds {
     /* Hardware Cropping / ePTZ (0x800+) */
     CISP_CMD_CH_CROP_GET                    = 0x800,
     CISP_CMD_CH_CROP_SET                    = 0x801,
+    CISP_CMD_CH_SCALER_CROP_SET             = 0x80a,
 
     /* Color & Post-Processing (0xa00+) */
     CISP_CMD_CH_COLOR_SATURATION_SET        = 0xa01,
+    CISP_CMD_CH_TONE_CURVE_CUSTOM_GET       = 0xa02,
+    CISP_CMD_CH_TONE_CURVE_CUSTOM_SET       = 0xa03,
+    CISP_CMD_CH_DRC_SET                     = 0xa19,
+    CISP_CMD_CH_DRC_GET                     = 0xa1a,
 
     /* Output Resolution & Format (0xb00+) */
     CISP_CMD_CH_OUTPUT_CONFIG_GET           = 0xb00,
@@ -152,6 +181,18 @@ struct __attribute__((packed)) fthd_cmd_output_config {
 struct __attribute__((packed)) fthd_cmd_int_param {
     uint32_t channel;
     int32_t  value;
+};
+
+struct __attribute__((packed)) fthd_cmd_focus_limits {
+    uint32_t channel;
+    uint32_t min;
+    uint32_t max;
+};
+
+struct __attribute__((packed)) fthd_cmd_awb_gains {
+    uint32_t channel;
+    uint32_t r_gain;
+    uint32_t b_gain;
 };
 
 /* Firmware Internal ISP State */

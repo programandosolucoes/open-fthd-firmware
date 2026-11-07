@@ -3,6 +3,9 @@
 
 #![allow(dead_code)]
 
+use crate::isp::{MasterIsp, AeMeteringMode};
+use crate::sensor::Ov5650Driver;
+
 pub const FTHD_NUM_CHANNELS: usize = 8;
 
 pub const DIR_HOST_TO_TARGET: u32 = 0;
@@ -46,7 +49,11 @@ static mut IO_T2H_BUFFER: [u8; 1024] = [0; 1024];
 /// Ringbuffer memory area for Compute requests & responses (Channel 7: COMPUTE).
 static mut COMPUTE_BUFFER: [u8; 1024] = [0; 1024];
 
-/// Firmware internal ISP state machine.
+/// Global Master ISP and Sensor instances
+pub static mut MASTER_ISP: MasterIsp = MasterIsp::new();
+pub static mut SENSOR_DRIVER: Ov5650Driver = Ov5650Driver::new();
+
+/// Firmware internal ISP state machine for compatibility.
 pub struct IspState {
     pub streaming_active: bool,
     pub crop_x: u32,
@@ -86,28 +93,158 @@ pub static mut ISP_STATE: IspState = IspState {
 /// Dispatch incoming host command and update ISP hardware state.
 pub fn dispatch_command(opcode: u32, payload: &[u8]) {
     unsafe {
+        let mut resp_data: u32 = 0;
+
         match opcode {
             0x100 => { // CH_START
                 ISP_STATE.streaming_active = true;
+                SENSOR_DRIVER.power_on();
                 terminal_write(b"Rust-OpenFTHD: CH_START streaming active\n");
             }
             0x101 => { // CH_STOP
                 ISP_STATE.streaming_active = false;
+                SENSOR_DRIVER.power_off();
                 terminal_write(b"Rust-OpenFTHD: CH_STOP standby\n");
             }
-            0x801 => { // CH_CROP_SET
+            0x107 => { // CAMERA_CONFIG_SELECT
+                if payload.len() >= 8 {
+                    let mode_idx = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]) as usize;
+                    let _ = SENSOR_DRIVER.set_mode(mode_idx);
+                    let mode = SENSOR_DRIVER.current_mode_desc();
+                    MASTER_ISP.scaler.sensor_width = mode.width as u32;
+                    MASTER_ISP.scaler.sensor_height = mode.height as u32;
+                    terminal_write(b"Rust-OpenFTHD: Mode selected\n");
+                }
+            }
+            0x200 => { // AE_START
+                MASTER_ISP.ae.enabled = true;
+            }
+            0x201 => { // AE_STOP
+                MASTER_ISP.ae.enabled = false;
+            }
+            0x20f => { // AE_INTEGRATION_TIME_SET
+                if payload.len() >= 8 {
+                    let lines = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    MASTER_ISP.ae.exposure_lines = lines;
+                    SENSOR_DRIVER.set_exposure(lines);
+                }
+            }
+            0x21e => { // AE_WINDOW_PARAM_SET
+                if payload.len() >= 8 {
+                    let m = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    ISP_STATE.ae_metering = m;
+                    MASTER_ISP.ae.metering_mode = match m {
+                        0 => AeMeteringMode::Average,
+                        1 => AeMeteringMode::CenterWeighted,
+                        2 => AeMeteringMode::Spot,
+                        _ => AeMeteringMode::Matrix,
+                    };
+                    terminal_write(b"Rust-OpenFTHD: AE photometry mode set\n");
+                }
+            }
+            0x224 => { // AE_TARGET_SET
+                if payload.len() >= 8 {
+                    MASTER_ISP.ae.target_luminance = payload[4];
+                }
+            }
+            0x22b => { // AE_MANUAL_MODE_SET
+                if payload.len() >= 8 {
+                    let manual = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    MASTER_ISP.ae.manual_mode = manual != 0;
+                }
+            }
+            0x300 => { // AWB_START
+                ISP_STATE.awb_enabled = true;
+                MASTER_ISP.awb.enabled = true;
+            }
+            0x301 => { // AWB_STOP
+                ISP_STATE.awb_enabled = false;
+                MASTER_ISP.awb.enabled = false;
+            }
+            0x304 => { // AWB_CCT_GET
+                resp_data = MASTER_ISP.awb.estimated_cct;
+            }
+            0x305 => { // AWB_CCT_MANUAL
+                if payload.len() >= 8 {
+                    MASTER_ISP.awb.manual_override = true;
+                    MASTER_ISP.awb.estimated_cct = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                }
+            }
+            0x311 => { // AWB_1ST_GAIN_MANUAL
+                if payload.len() >= 12 {
+                    MASTER_ISP.awb.manual_override = true;
+                    MASTER_ISP.awb.r_gain = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]) as u16;
+                    MASTER_ISP.awb.b_gain = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]) as u16;
+                }
+            }
+            0x400 | 0x407 => { // AF_START / AF_ONE_SHOT
+                terminal_write(b"Rust-OpenFTHD: AF sweep initiated\n");
+            }
+            0x500 => { // SENSOR_FRAME_RATE_SET
+                if payload.len() >= 8 {
+                    let fps = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    SENSOR_DRIVER.set_framerate(fps);
+                }
+            }
+            0x50b => { // SENSOR_POWER_ON
+                SENSOR_DRIVER.power_on();
+            }
+            0x50c => { // SENSOR_POWER_OFF
+                SENSOR_DRIVER.power_off();
+            }
+            0x700 => { // FOCUS_LIMITS_SET
+                if payload.len() >= 12 {
+                    MASTER_ISP.vcm.min_dac = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]) as u16;
+                    MASTER_ISP.vcm.max_dac = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]) as u16;
+                }
+            }
+            0x702 => { // FOCUS_POSITION_SET
+                if payload.len() >= 8 {
+                    let pos = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]) as u16;
+                    MASTER_ISP.vcm.set_position(pos);
+                }
+            }
+            0x703 => { // FOCUS_POSITION_GET
+                resp_data = MASTER_ISP.vcm.current_dac as u32;
+            }
+            0x704 => { // FOCUS_STEP_SIZE_SET
+                if payload.len() >= 8 {
+                    MASTER_ISP.vcm.step_size = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]) as u16;
+                }
+            }
+            0x801 | 0x80a => { // CH_CROP_SET / SCALER_CROP_SET
                 if payload.len() >= 20 {
-                    ISP_STATE.crop_x = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
-                    ISP_STATE.crop_y = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
-                    ISP_STATE.crop_width = u32::from_le_bytes([payload[12], payload[13], payload[14], payload[15]]);
-                    ISP_STATE.crop_height = u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
+                    let x = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    let y = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+                    let w = u32::from_le_bytes([payload[12], payload[13], payload[14], payload[15]]);
+                    let h = u32::from_le_bytes([payload[16], payload[17], payload[18], payload[19]]);
+                    ISP_STATE.crop_x = x;
+                    ISP_STATE.crop_y = y;
+                    ISP_STATE.crop_width = w;
+                    ISP_STATE.crop_height = h;
+                    MASTER_ISP.scaler.set_crop(x, y, w, h);
                     terminal_write(b"Rust-OpenFTHD: ePTZ hardware crop applied\n");
+                }
+            }
+            0xa01 => { // COLOR_SATURATION_SET
+                if payload.len() >= 8 {
+                    ISP_STATE.saturation = i32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                }
+            }
+            0xa19 => { // DRC_SET
+                if payload.len() >= 8 {
+                    let st = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    MASTER_ISP.drc.strength = st;
+                    MASTER_ISP.drc.rebuild_lut();
                 }
             }
             0xb01 => { // CH_OUTPUT_CONFIG_SET
                 if payload.len() >= 12 {
-                    ISP_STATE.output_width = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
-                    ISP_STATE.output_height = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+                    let w = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                    let h = u32::from_le_bytes([payload[8], payload[9], payload[10], payload[11]]);
+                    ISP_STATE.output_width = w;
+                    ISP_STATE.output_height = h;
+                    MASTER_ISP.scaler.set_output(w, h);
                     terminal_write(b"Rust-OpenFTHD: Output resolution configured\n");
                 }
             }
@@ -131,23 +268,15 @@ pub fn dispatch_command(opcode: u32, payload: &[u8]) {
                     ISP_STATE.hue = i32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
                 }
             }
-            0x300 => { // AWB_START
-                ISP_STATE.awb_enabled = true;
-            }
-            0x301 => { // AWB_STOP
-                ISP_STATE.awb_enabled = false;
-            }
-            0x21e => { // AE_WINDOW_PARAM_SET
-                if payload.len() >= 8 {
-                    ISP_STATE.ae_metering = u32::from_le_bytes([payload[4], payload[5], payload[6], payload[7]]);
-                }
-            }
             0xc00 => { // DRC_START
                 ISP_STATE.drc_enabled = true;
-                terminal_write(b"Rust-OpenFTHD: DRC / HDR enabled\n");
+                MASTER_ISP.drc.enabled = true;
+                MASTER_ISP.drc.rebuild_lut();
+                terminal_write(b"Rust-OpenFTHD: DRC dynamic tone curve enabled\n");
             }
             0xc01 => { // DRC_STOP
                 ISP_STATE.drc_enabled = false;
+                MASTER_ISP.drc.enabled = false;
             }
             0x608 => { // STATUS_LED_DEBUG_SET
                 if payload.len() >= 8 {
@@ -161,6 +290,8 @@ pub fn dispatch_command(opcode: u32, payload: &[u8]) {
         let op_bytes = opcode.to_le_bytes();
         IO_T2H_BUFFER[0..4].copy_from_slice(&op_bytes);
         IO_T2H_BUFFER[4..8].copy_from_slice(&[0, 0, 0, 0]);
+        let resp_bytes = resp_data.to_le_bytes();
+        IO_T2H_BUFFER[8..12].copy_from_slice(&resp_bytes);
     }
 }
 
